@@ -1,0 +1,80 @@
+#main-app-log {
+    height: auto;
+    width: 50%;
+}
+
+#main-screens-section {
+    height: auto;
+    width: 50%;
+}
+
+/* OPEN DIALOG DATA */
+
+#od-directory-tree {
+    scrollbar-gutter: stable;
+}
+
+#od-main-in {
+    dock: bottom;
+ }
+
+#od-nos-switch {
+    margin-left: 1;
+    width: 15;
+}
+
+#od-encoding-switch {
+    margin-left: 1;
+    width: 15;
+}
+
+#od-error-caption {
+    margin-left: 1;
+    color: red;
+}
+
+#od-top-container {
+    height: auto;
+    dock: top;
+}
+
+#od-open-button {
+    margin-left: 1;
+}
+
+/* WS DATA */
+
+#ws-main-in {
+    /* border: solid $accent; */
+    border: none;
+    padding-top: 1;
+    padding-bottom: 1;
+    /* height: 1; */
+}
+
+#ws-path-line {
+    /* border: solid yellow; */
+    /* margin-left: 1; */
+    background: $secondary-background-lighten-3;
+}
+
+#ws-status-bar {
+    background: $accent;
+}
+
+#ws-left-sidebar {
+    dock: left;
+    width: 30;
+    height: 100%;
+    border-right: #0f2b30;
+}
+
+#ws-right-bottom-controls {
+    /* border: solid salmon; */
+    height: auto;
+    dock: bottom;
+}
+
+/* #ws-main-out-container {
+    border: solid yellow;
+} */
