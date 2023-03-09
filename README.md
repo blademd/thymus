@@ -136,6 +136,6 @@ The sidebar shows you sections for autocompleting your current input. It works w
 - Other NOS`es support.
 
 ## Feedback
-```
-[![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/blademd.svg?style=social&label=Follow%20%40blademd)](https://twitter.com/blademd)
-```
+
+[Twitter](https://twitter.com/blademd)
+[Telegram](https://t.me/blademd)
