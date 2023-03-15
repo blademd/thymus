@@ -102,13 +102,15 @@ class OpenDialog(Screen):
                 screen_name
             )
         except Exception as err:
-            control = self.app.query_one('#main-app-log', TextLog)
-            control.write(f'Error has occurred: {err}')
+            if self.app.default_screen:
+                control = self.app.default_screen.query_one('#main-app-log', TextLog)
+                control.write(f'Error has occurred: {err}')
             self.app.uninstall_screen(screen_name)
         else:
             self.app.push_screen(screen_name)
-            control = self.app.query_one('#main-screens-section', ListView)
-            control.append(ListItem(Label(filename, name=screen_name)))
+            if self.app.default_screen:
+                control = self.app.default_screen.query_one('#main-screens-section', ListView)
+                control.append(ListItem(Label(filename, name=screen_name)))
 
     def watch_current_path(self, value: Path) -> None:
         tree = self.query_one(DirectoryTree)

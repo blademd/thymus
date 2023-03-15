@@ -60,5 +60,6 @@ class TThymus(App):
         self.dark = not self.dark
 
     async def action_pop_screen(self) -> None:
-        self.query_one('#main-screens-section', ListView).focus()
+        if self.default_screen:
+            self.default_screen.query_one('#main-screens-section', ListView).focus()
         return await super().action_pop_screen()
