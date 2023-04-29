@@ -45,6 +45,20 @@ python -m thymus clier
 - `Arrow Up/Down` to navigate over sections of the sidebar.
 - `Ctrl+C` to immediately exit the application (**warning**, it does not ask you for mercy!)
 
+## Selecting and copying the text
+
+From the Textual documentation:
+
+	Running a Textual app puts your terminal in to application mode which disables clicking and dragging to select text.
+	Most terminal emulators offer a modifier key which you can hold while you click and drag to restore the behavior you
+	may expect from the command line. The exact modifier key depends on the terminal and platform you are running on.
+
+	- iTerm: Hold the OPTION key.
+	- Gnome Terminal: Hold the SHIFT key.
+	- Windows Terminal: Hold the SHIFT key.
+
+	Refer to the documentation for your terminal emulator, if it is not listed above.
+
 # Usage
 
 ## Junos commands list
@@ -125,14 +139,13 @@ The `show` command supports the modificators after the `|` symbol. Modificators 
 
 ## Issues
 
-Textual is a young and powerful lib. But despite its abilities, some widgets are not good at tasks that Thymus rises. At this time, some hacks are used to draw lengthy configs (i.e., several megabytes) to the screen. Thymus shows you only the two first screens and then after every fourth scroll wheel down event, it appends one screen as a tail.  You can easily notice it by putting the vertical scroll bar to the very end. In this case, there will not be a full config on the screen! That was made intentionally so you can scroll down some output without any side effects of the sub-loading. It's not also possible to select and copy (*sic!*) any text from the main output at this time.
+Textual is a young and powerful lib. But despite its abilities, some widgets are not good at tasks that Thymus rises. At this time, some hacks are used to draw lengthy configs (i.e., several megabytes) to the screen. Thymus shows you only the two first screens and then after every fourth scroll wheel down event, it appends one screen as a tail.  You can easily notice it by putting the vertical scroll bar to the very end. In this case, there will not be a full config on the screen! That was made intentionally so you can scroll down some output without any side effects of the sub-loading.
 
 The sidebar shows you sections for autocompleting your current input. It works well but can be and will be enhanced later. Also, there are some performance penalties so the number of sections is limited to the current size of the screen.
 
 ## What's next
 
 - Syntax highlighting.
-- Selecting, and copying text from the main output section.
 - Other NOS`es support.
 
 ## Feedback
