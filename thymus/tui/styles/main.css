@@ -10,6 +10,13 @@
 
 /* OPEN DIALOG DATA */
 
+#od-left-block {
+    dock: left;
+    width: 30;
+    height: 100%;
+    border-right: #0f2b30;
+}
+
 #od-directory-tree {
     scrollbar-gutter: stable;
 }
@@ -17,16 +24,6 @@
 #od-main-in {
     dock: bottom;
  }
-
-#od-nos-switch {
-    margin-left: 1;
-    width: 15;
-}
-
-#od-encoding-switch {
-    margin-left: 1;
-    width: 15;
-}
 
 #od-error-caption {
     margin-left: 1;

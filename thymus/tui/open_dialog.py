@@ -40,30 +40,58 @@ class OpenDialog(Screen):
     current_path: Reactive[Path] = Reactive(Path.cwd())
 
     def compose(self) -> 'ComposeResult':
-        yield Vertical(
-            Horizontal(
-                Button('UP', id='od-up-button', variant='primary'),
-                Button('OPEN', id='od-open-button', variant='primary'),
+        yield Horizontal(
+            Vertical(
+                Static('Select NOS:'),
                 ListView(
                     ListItem(Label('Juniper JunOS', name='junos')),
-                    # ListItem(Label('Arista EOS', name='eos')),
-                    # ListItem(Label('Cisco IOS', name='ios')),
                     id='od-nos-switch'
                 ),
+                Static('Select encoding:'),
                 ListView(
                     ListItem(Label('UTF-8-SIG', name='utf-8-sig')),
                     ListItem(Label('UTF-8', name='utf-8')),
                     ListItem(Label('CP1251', name='cp1251')),
                     id='od-encoding-switch'
                 ),
-                Static(id='od-error-caption'),
-                id='od-top-container'
+                id='od-left-block'
             ),
-            DirectoryTree(path=str(self.current_path.absolute()), id='od-directory-tree'),
-            ODExtendedInput(placeholder='filename...', id='od-main-in')
+            Vertical(
+                Horizontal(
+                    Button('UP', id='od-up-button', variant='primary'),
+                    Button('OPEN', id='od-open-button', variant='primary'),
+                    Static(id='od-error-caption'),
+                    id='od-top-container'
+                ),
+                DirectoryTree(path=str(self.current_path.absolute()), id='od-directory-tree'),
+                Input(placeholder='filename...', id='od-main-in'),
+                id='od-right-block'
+            ),
         )
+        # yield Vertical(
+        #     Horizontal(
+        #         Button('UP', id='od-up-button', variant='primary'),
+        #         Button('OPEN', id='od-open-button', variant='primary'),
+        #         ListView(
+        #             ListItem(Label('Juniper JunOS', name='junos')),
+        #             # ListItem(Label('Arista EOS', name='eos')),
+        #             # ListItem(Label('Cisco IOS', name='ios')),
+        #             id='od-nos-switch'
+        #         ),
+        #         ListView(
+        #             ListItem(Label('UTF-8-SIG', name='utf-8-sig')),
+        #             ListItem(Label('UTF-8', name='utf-8')),
+        #             ListItem(Label('CP1251', name='cp1251')),
+        #             id='od-encoding-switch'
+        #         ),
+        #         Static(id='od-error-caption'),
+        #         id='od-top-container'
+        #     ),
+        #     DirectoryTree(path=str(self.current_path.absolute()), id='od-directory-tree'),
+        #     ODExtendedInput(placeholder='filename...', id='od-main-in')
+        # )
 
-    def on_mount(self) -> None:
+    def on_ready(self) -> None:
         self.query_one(DirectoryTree).focus()
 
     def on_show(self) -> None:
@@ -118,10 +146,10 @@ class OpenDialog(Screen):
         data = DirEntry(value.absolute(), True)
         new_node = tree._add_node(None, label, data)
         tree.root = new_node
-        tree.load_directory(new_node)
+        tree._load_directory(new_node)
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         event.stop()
         input = self.query_one(Input)
         input.focus()
-        input.value = event.path
+        input.value = str(event.path)

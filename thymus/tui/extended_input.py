@@ -18,11 +18,12 @@ from textual.widgets import (
 
 if TYPE_CHECKING:
     from asyncio import Task
+    from typing import Any
 
     if sys.version_info.major == 3 and sys.version_info.minor >= 9:
-        from collections.abc import Iterable
+        from collections.abc import Iterable, Coroutine
     else:
-        from typing import Iterable
+        from typing import Iterable, Coroutine
 
 
 class ExtendedInput(Input):
@@ -57,7 +58,7 @@ class ExtendedInput(Input):
         else:
             self.__clear_left_sections()
 
-    async def on_key(self, event: Key) -> None:
+    async def _on_key(self, event: Key) -> 'Coroutine[Any, Any, None]':
         if event.key == 'space':
             if self.value:
                 if self.value[-1] == ' ':
@@ -70,7 +71,15 @@ class ExtendedInput(Input):
                         self.value = selected.name.join(self.value.rsplit(match.strip(), 1))
                         self.cursor_position = len(self.value)
                     event.stop()
-        return await super().on_key(event)
+        elif event.key == 'up':
+            control = self.screen.query_one('#ws-sections-list', ListView)
+            if control.children:
+                control.action_cursor_up()
+        elif event.key == 'down':
+            control = self.screen.query_one('#ws-sections-list', ListView)
+            if control.children:
+                control.action_cursor_down()
+        return await super()._on_key(event)
 
     async def __update_left_sections(self, data: 'Iterable[str]') -> None:
         control = self.screen.query_one('#ws-sections-list', ListView)
@@ -92,17 +101,3 @@ class ExtendedInput(Input):
                         break
         except CancelledError:
             pass
-
-    def action_scroll_down(self) -> None:
-        control = self.screen.query_one('#ws-sections-list', ListView)
-        if control.children:
-            control.action_cursor_down()
-        if not self.current_task:
-            return super().action_scroll_down()
-
-    def action_scroll_up(self) -> None:
-        control = self.screen.query_one('#ws-sections-list', ListView)
-        if control.children:
-            control.action_cursor_up()
-        if not self.current_task:
-            return super().action_scroll_up()

@@ -106,7 +106,7 @@ class WorkingScreen(Screen):
                 continue
             if line[-1] == '\n':
                 line = line[:-1]
-            control.write(line)
+            control.write(line, scroll_end=False)
         status_bar = self.query_one('#ws-status-bar')
         status = 'Spaces: {SPACES}  Lines: {LINES}  {ENCODING}  {FILENAME}'.format(
             SPACES=self.context.spaces,
