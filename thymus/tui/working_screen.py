@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from itertools import islice
 
 
@@ -19,14 +19,18 @@ from textual.widgets import (
     TextLog,
     Static,
 )
+from rich.text import Text
+from rich.syntax import Syntax
 
 from ..contexts import JunosContext
+from ..lexers import JunosLexer
 from .extended_textlog import ExtendedTextLog
 from .extended_input import ExtendedInput
 
 
 if TYPE_CHECKING:
-    from ..contexts import Context
+    from ..app_settings import SettingsResponse
+    from ..contexts import Context, ContextResponse
 
     from textual.app import ComposeResult
 
@@ -43,8 +47,8 @@ class WorkingScreen(Screen):
     filename: var[str] = var('')
     nos_type: var[str] = var('')
     encoding: var[str] = var('')
-    context: var['Context | None'] = var(None)
-    draw_data: var['Iterable[str]'] = var([])
+    context: var['Optional[Context]'] = var(None)
+    draw_data: var['Optional[ContextResponse]'] = var(None)
 
     def __init__(self, filename: str, nos_type: str, encoding: str, *args, **kwags) -> None:
         super().__init__(*args, **kwags)
@@ -91,32 +95,57 @@ class WorkingScreen(Screen):
         else:
             raise Exception(f'Unsupported NOS {self.nos_type}.')
 
-    def draw(self, out: 'Iterable[str]' = []) -> None:
+    def __draw(self, status: str, value: 'Iterable[str]', multiplier: int = 1) -> None:
         control = self.query_one('#ws-main-out', TextLog)
-        height = control.size.height
-        if out:
-            control.clear()
-            control.scroll_home(animate=False)
-            self.draw_data = out
-        if not self.draw_data:
+        theme = self.app.settings.theme
+        code_width = self.app.settings.code_width
+        if not control:
             return
-        multiplier = 2 if out else 1
-        for line in islice(self.draw_data, height * multiplier):
+        height = control.size.height
+        for line in islice(value, height * multiplier):
             if not line:
                 continue
             if line[-1] == '\n':
                 line = line[:-1]
-            control.write(line, scroll_end=False)
+            if status == 'success':
+                control.write(
+                    Syntax(line, lexer=JunosLexer(), theme=theme, code_width=code_width),
+                    scroll_end=False
+                )
+            else:
+                control.write(Text(line, style='red'), scroll_end=False)
         status_bar = self.query_one('#ws-status-bar')
-        status = 'Spaces: {SPACES}  Lines: {LINES}  {ENCODING}  {FILENAME}'.format(
+        if not status_bar:
+            return
+        bottom_state = 'Spaces: {SPACES}  Lines: {LINES}  Theme: {THEME}  {ENCODING}  {FILENAME}'.format(
             SPACES=self.context.spaces,
             LINES=len(self.context.content),
+            THEME=theme.upper(),
             ENCODING=self.context.encoding.upper(),
             FILENAME=self.filename
         )
         if context_name := self.context.name:
-            status = f'Context: {context_name}  ' + status
-        status_bar.update(status)
+            bottom_state = f'Context: {context_name}  ' + bottom_state
+        status_bar.update(bottom_state)
+
+    def draw(self, data: 'Optional[ContextResponse]' = None) -> None:
+        multiplier: int = 1
+        if data:
+            # renew the self.draw_data
+            if data.value:
+                multiplier = 2
+                control = self.query_one('#ws-main-out', TextLog)
+                control.clear()
+                control.scroll_home(animate=False)
+                self.draw_data = data
+            else:
+                # nothing to draw
+                return
+        else:
+            if not self.draw_data or not self.draw_data.value:
+                # nothing to draw again
+                return
+        self.__draw(self.draw_data.status, self.draw_data.value, multiplier)
 
     def update_path(self) -> None:
         control = self.query_one('#ws-path-line', Static)

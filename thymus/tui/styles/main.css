@@ -1,11 +1,14 @@
 #main-app-log {
     height: auto;
-    width: 50%;
+    overflow-x: hidden;
 }
 
 #main-screens-section {
     height: auto;
-    width: 50%;
+}
+
+#main-welcome-out {
+    dock: top;
 }
 
 /* OPEN DIALOG DATA */
@@ -36,6 +39,10 @@
 }
 
 #od-open-button {
+    margin-left: 1;
+}
+
+#od-refresh-button {
     margin-left: 1;
 }
 

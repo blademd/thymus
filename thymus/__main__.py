@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from . import __version__ as appver
+from . import __version__ as app_ver
 from . import tuier
 from . import clier
 
@@ -37,7 +37,7 @@ def main(args: list[str]) -> None:
         elif args[1] == 'tuier':
             run_tui()
         elif args[1] == 'version' or args[1] == 'ver':
-            print(f'Thymus ver. {appver}')
+            print(f'Thymus ver. {app_ver}')
         else:
             help()
     else:

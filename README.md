@@ -8,6 +8,8 @@ Currently, Thymus supports only the Juniper Junos OS tree-view configuration (*t
 
 ## Requirements
 
+Tested with Python **3.8.10**.
+
 Thymus uses [Textual](https://github.com/Textualize/textual) as its TUI part so all the requirements of the latter are applicable to the former. There are no additional requirements (except your courage for sure).
 
 ## Modes
@@ -61,6 +63,24 @@ From the Textual documentation:
 
 # Usage
 
+## Context vs. global
+
+When you open a config file you get access to the Working view. This view allows you to navigate through the config file, filter some output, save it, etc. Thymus supports two configurable instances: context and global. The context instance describes the settings of a configuration that is opened in the Working view. Currently, there is only the JunOS context available. The global instance allows you to manipulate settings of Thymus itself. Context's settings are manipulated via the `set` command, global -- the `global set` command.
+
+The global settings are stored in the `thymus\settings\global.json` file. Thymus creates this directory and file at its startup if it is able to.
+
+## Global commands list
+
+- `global show themes` command lists all available highlighting themes.
+- `global set theme` command allows you to choose any theme from the list.
+
+## Context commands list
+
+- `set` command allows you to configure some system-wide settings for the current context. It supports now:
+- - `name` is to set the name of the context. This name is required by the `compare` modificator of the `show` command.
+- - `spaces` is to set the indentation length for the `show` command.
+- - `encoding` is to set the encoding for the `save` modificator.
+
 ## Junos commands list
 
 The behavior of the tool mimics Junos CLI. Some commands are replaced with more handy analogs.
@@ -70,11 +90,7 @@ The behavior of the tool mimics Junos CLI. Some commands are replaced with more 
 - `top` command without any arguments sets the current path back to the root.
 - - `top show` modification allows you to see the full configuration (the configuration of the root). It also supports relative paths as the `show` does.
 - - `top go` modification allows you to change the current path to any other possible section.
-- `up` command without any arguments sets the current path back to the previous section. It supports a number of sections to set back. If the number is bigger than the current depth `up` works as `top`.
-- `set` command allows you to configure some system-wide settings for the current screen. Currently, it supports:
-- - `name` is to set the name of the screen/context. This name is required by the `compare` modificator of the `show` command.
-- - `spaces` is to set the indentation length for the `show` command.
-- - `encoding` is to set the encoding for the `save` modificator.
+- `up` command without any arguments sets the current path back to the previous section. It supports a number of sections to return. If the number is bigger than the current depth `up` works as `top`. It also supports `show` instead the number, `up show` does not support any arguments or modificators at this moment.
 
 And some commands are for the CLI-mode:
 
@@ -145,7 +161,7 @@ The sidebar shows you sections for autocompleting your current input. It works w
 
 ## What's next
 
-- Syntax highlighting.
+- Configs` analyzing.
 - Other NOS`es support.
 
 ## Feedback

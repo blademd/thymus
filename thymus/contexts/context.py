@@ -20,6 +20,7 @@ from ..parsers.jparser import (
 from typing import TYPE_CHECKING, NoReturn
 from collections import deque
 from functools import reduce
+from dataclasses import dataclass
 
 
 if TYPE_CHECKING:
@@ -32,6 +33,13 @@ if TYPE_CHECKING:
     else:
         from typing import Generator, Iterable, Callable
 
+UP_LIMIT = 8
+
+
+@dataclass
+class ContextResponse:
+    status: str  # error or success
+    value: 'Iterable[str]'
 
 class Context:
     __slots__ = (
@@ -77,7 +85,7 @@ class Context:
         except LookupError:
             raise ValueError(f'{value} is not a correct encoding.')
 
-    def on_enter(self, value: str) -> 'Iterable[str]':
+    def on_enter(self, value: str) -> ContextResponse:
         pass
 
     def update_virtual(self, value: str) -> 'Generator[str, None, None]':
@@ -133,9 +141,9 @@ class JunosContext(Context):
             raise ValueError('Spaces number can be 2, 4, or 8.')
         self.__spaces = value
 
-    def on_enter(self, value: str) -> 'Iterable[str]':
+    def on_enter(self, value: str) -> ContextResponse:
         if not value:
-            return
+            return ContextResponse('error', [])
         args = reduce(
             lambda acc, x: acc[:-1] + [acc[-1] + [x]] if x != '|' else acc + [[]],
             shlex.split(value),
@@ -153,7 +161,7 @@ class JunosContext(Context):
             return self.__command_up(head)
         elif command == 'set':
             return self.__command_set(head)
-        return []
+        return ContextResponse('error', [])
 
     def __update_virtual_from_cursor(self, parts: list[str]) -> 'Generator[str, None, None]':
         if not parts:
@@ -248,12 +256,15 @@ class JunosContext(Context):
         # terminating modificator
         if len(args) == 1 and source:
             destination = args.pop()
-            with open(destination, 'w', encoding=self.encoding) as f:
-                for line in source:
-                    f.write(f'{line}\n')
-                f.flush()
-                os.fsync(f.fileno())
-                raise FabricException()
+            try:
+                with open(destination, 'w', encoding=self.encoding) as f:
+                    for line in source:
+                        f.write(f'{line}\n')
+                    f.flush()
+                    os.fsync(f.fileno())
+                    raise FabricException()
+            except FileNotFoundError:
+                raise FabricException('No such file or directory.')
         raise FabricException('Incorrect arguments for `save`.')
 
     def __count(self, args: deque[str], source: 'Iterable[str]') -> NoReturn:
@@ -383,48 +394,48 @@ class JunosContext(Context):
             pass
         except FabricException as err:
             if len(err.args):
-                yield err.args[0]
+                yield f'- {err.args[0]}'  # TEMP
 
-    def __command_show(self, args: deque[str] = [], mods: list[list[str]] = []) -> 'Iterable[str]':
+    def __command_show(self, args: deque[str] = [], mods: list[list[str]] = []) -> ContextResponse:
         if args:
             if args[0] in ('ver', 'version',):
                 if len(args) > 1:
-                    return iter(['Incorrect arguments for `show version`.'])
+                    return ContextResponse('error', iter(['Incorrect arguments for `show version`.']))
                 ver = self.__tree['version'] if self.__tree['version'] else 'No version has been detected.'
-                return iter([ver])
+                return ContextResponse('success', iter([ver]))
             else:
                 if node := search_node(args, self.__cursor):
                     data = lazy_parser(self.content, node['path'], self.delimiter)
                     next(data)
                     if mods:
                         args.append(node['path'])
-                        return self.__process_fabric(mods, data, extra_args=args)
+                        return ContextResponse('success', self.__process_fabric(mods, data, extra_args=args))
                     else:
-                        return lazy_provide_config(data, block=' ' * self.spaces)
+                        return ContextResponse('success', lazy_provide_config(data, block=' ' * self.spaces))
                 else:
-                    return iter(['The path is not correct.'])
+                    return ContextResponse('error', iter(['The path is not correct.']))
         else:
             data = iter(self.content)
             if self.__cursor['name'] != 'root':
                 data = lazy_parser(data, self.__cursor['path'], self.delimiter)
                 next(data)
             if mods:
-                return self.__process_fabric(mods, data)
+                return ContextResponse('success', self.__process_fabric(mods, data))
             else:
-                return lazy_provide_config(data, block=' ' * self.spaces)
+                return ContextResponse('success', lazy_provide_config(data, block=' ' * self.spaces))
 
-    def __command_go(self, args: deque[str]) -> 'Iterable[str]':
+    def __command_go(self, args: deque[str]) -> ContextResponse:
         if not args:
-            return iter(['Incorrect arguments for `go`.'])
+            return ContextResponse('error', iter(['Incorrect arguments for `go`.']))
         if node := search_node(args, self.__cursor):
             self.__cursor = node
         else:
-            return iter(['The path is not correct.'])
-        return []
+            return ContextResponse('error', iter(['The path is not correct.']))
+        return ContextResponse('success', [])
 
-    def __command_top(self, args: deque[str] = [], mods: list[list[str]] = []) -> 'Iterable[str]':
+    def __command_top(self, args: deque[str] = [], mods: list[list[str]] = []) -> ContextResponse:
         if args and len(args) < 2:
-            return iter(['Incorrect arguments for `top`.'])
+            return ContextResponse('error', iter(['Incorrect arguments for `top`.']))
         if args:
             command = args.popleft()
             if command == 'show':
@@ -432,33 +443,42 @@ class JunosContext(Context):
                 self.__cursor = self.__tree
                 result = self.__command_show(args, mods)
                 self.__cursor = temp
-                return result
+                return result  # propagates show's status and value
             elif command == 'go':
                 temp = self.__cursor
                 self.__cursor = self.__tree
-                if self.__command_go(args):
+                result = self.__command_go(args)
+                if result.status == 'error':
                     self.__cursor = temp
+                    return ContextResponse('error', result.value)
             else:
-                return iter(['Incorrect arguments for `top`.'])
+                return ContextResponse('error', iter(['Incorrect arguments for `top`.']))
         else:
             if self.__cursor['name'] == 'root':
-                return []
+                return ContextResponse('success', [])
             self.__cursor = self.__tree
-        return []
+        return ContextResponse('success', [])
 
-    def __command_up(self, args: deque[str] = []) -> 'Iterable[str]':
+    def __command_up(self, args: deque[str] = []) -> ContextResponse:
         if args and len(args) != 1:
-            return iter(['Incorrect arguments for `up`.'])
-        if args and len(args[0]) > 2:
-            return iter(['Incorrect length for `up`.'])
+            return ContextResponse('error', iter(['Incorrect arguments for `up`.']))
         steps_back = 1
         if args:
-            if args[0].isdigit():
-                steps_back = int(args[0])
+            command = args.popleft()
+            if command.isdigit():
+                steps_back = min(int(command), UP_LIMIT)
+            elif command == 'show':
+                if self.__cursor['name'] == 'root':
+                    return ContextResponse('error', iter(['Incorrect arguments for `up`.']))
+                temp = self.__cursor
+                self.__cursor = self.__cursor['parent']
+                result = self.__command_show()
+                self.__cursor = temp
+                return result  # propagates show's status and value
             else:
-                return iter(['Incorrect arguments for `up`.'])
+                return ContextResponse('error', iter(['Incorrect arguments for `up`.']))
         if self.__cursor['name'] == 'root':
-            return []
+            return ContextResponse('success', [])
         node = self.__cursor
         while steps_back:
             if node['name'] == 'root':
@@ -466,15 +486,15 @@ class JunosContext(Context):
             node = node['parent']
             steps_back -= 1
         self.__cursor = node
-        return []
+        return ContextResponse('success', [])
 
-    def __command_set(self, args: deque[str]) -> 'Iterable[str]':
+    def __command_set(self, args: deque[str]) -> ContextResponse:
         if not args:
-            return iter(['Incorrect arguments for `set`.'])
+            return ContextResponse('error', iter(['Incorrect arguments for `set`.']))
         command = args.popleft()
         if command in ('name', 'spaces', 'encoding',):
             if len(args) != 1:
-                return iter([f'Incorrect arguments for `set {command}`.'])
+                return ContextResponse('error', iter([f'Incorrect arguments for `set {command}`.']))
             value = args.pop()
             try:
                 if command == 'name':
@@ -485,9 +505,9 @@ class JunosContext(Context):
                     self.encoding = value
             except ValueError as err:
                 if len(err.args):
-                    return iter(err.args)
+                    return ContextResponse('error', iter(err.args))
             else:
-                return iter([f'The {command} was successfully set.'])
+                return ContextResponse('success', iter([f'+ The {command} was successfully set.']))  # TEMP
         else:
-            return iter(['Unknow argument for `set`.'])
-        return []
+            return ContextResponse('error', iter(['Unknow argument for `set`.']))
+        return ContextResponse('error', [])

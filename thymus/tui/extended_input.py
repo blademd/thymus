@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from asyncio import create_task, CancelledError
 
 
@@ -27,12 +27,15 @@ if TYPE_CHECKING:
 
 
 class ExtendedInput(Input):
-    current_task: var['Task | None'] = var(None)
+    current_task: var['Optional[Task]'] = var(None)
 
     async def action_submit(self) -> None:
         if not self.screen.context:
             return
-        if out := self.screen.context.on_enter(self.value):
+        if self.value.startswith('global '):
+            out = self.app.settings.process_command(self.value)
+            self.screen.draw(out)
+        elif out := self.screen.context.on_enter(self.value):
             self.screen.draw(out)
         self.__clear_left_sections()
         self.screen.update_path()  # always updates path due to its possible changes

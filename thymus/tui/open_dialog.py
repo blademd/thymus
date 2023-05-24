@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from textual import events
 from textual.screen import Screen
-from textual.reactive import Reactive
+from textual.reactive import var
 from textual.containers import (
     Horizontal,
     Vertical,
@@ -16,6 +17,7 @@ from textual.widgets import (
     TextLog,
 )
 from textual.widgets._directory_tree import DirectoryTree, DirEntry
+from rich.text import Text
 
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -37,7 +39,7 @@ class OpenDialog(Screen):
     BINDINGS = [
         ('escape', 'app.pop_screen', 'Pop screen')
     ]
-    current_path: Reactive[Path] = Reactive(Path.cwd())
+    current_path: var[Path] = var(Path.cwd())
 
     def compose(self) -> 'ComposeResult':
         yield Horizontal(
@@ -60,43 +62,18 @@ class OpenDialog(Screen):
                 Horizontal(
                     Button('UP', id='od-up-button', variant='primary'),
                     Button('OPEN', id='od-open-button', variant='primary'),
+                    Button('REFRESH', id='od-refresh-button', variant='primary'),
                     Static(id='od-error-caption'),
                     id='od-top-container'
                 ),
-                DirectoryTree(path=str(self.current_path.absolute()), id='od-directory-tree'),
-                Input(placeholder='filename...', id='od-main-in'),
+                DirectoryTree(path='./', id='od-directory-tree'),
+                ODExtendedInput(placeholder='filename...', id='od-main-in'),
                 id='od-right-block'
             ),
         )
-        # yield Vertical(
-        #     Horizontal(
-        #         Button('UP', id='od-up-button', variant='primary'),
-        #         Button('OPEN', id='od-open-button', variant='primary'),
-        #         ListView(
-        #             ListItem(Label('Juniper JunOS', name='junos')),
-        #             # ListItem(Label('Arista EOS', name='eos')),
-        #             # ListItem(Label('Cisco IOS', name='ios')),
-        #             id='od-nos-switch'
-        #         ),
-        #         ListView(
-        #             ListItem(Label('UTF-8-SIG', name='utf-8-sig')),
-        #             ListItem(Label('UTF-8', name='utf-8')),
-        #             ListItem(Label('CP1251', name='cp1251')),
-        #             id='od-encoding-switch'
-        #         ),
-        #         Static(id='od-error-caption'),
-        #         id='od-top-container'
-        #     ),
-        #     DirectoryTree(path=str(self.current_path.absolute()), id='od-directory-tree'),
-        #     ODExtendedInput(placeholder='filename...', id='od-main-in')
-        # )
 
-    def on_ready(self) -> None:
-        self.query_one(DirectoryTree).focus()
-
-    def on_show(self) -> None:
-        # TODO: update DirTree here
-        pass
+    def on_mount(self, event: events.Mount) -> None:
+        self.__navigate_tree(self.current_path)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == 'od-open-button':
@@ -104,6 +81,9 @@ class OpenDialog(Screen):
             self.open_file(filename)
         elif event.button.id == 'od-up-button':
             self.current_path = self.current_path.parent
+            self.__navigate_tree(self.current_path)
+        elif event.button.id == 'od-refresh-button':
+            self.__navigate_tree(self.current_path)
 
     def open_file(self, filename: str) -> None:
         if not filename:
@@ -132,7 +112,7 @@ class OpenDialog(Screen):
         except Exception as err:
             if self.app.default_screen:
                 control = self.app.default_screen.query_one('#main-app-log', TextLog)
-                control.write(f'Error has occurred: {err}')
+                control.write(Text(f'Error has occurred: {err}', 'red'))
             self.app.uninstall_screen(screen_name)
         else:
             self.app.push_screen(screen_name)
@@ -140,7 +120,7 @@ class OpenDialog(Screen):
                 control = self.app.default_screen.query_one('#main-screens-section', ListView)
                 control.append(ListItem(Label(filename, name=screen_name)))
 
-    def watch_current_path(self, value: Path) -> None:
+    def __navigate_tree(self, value: Path) -> None:
         tree = self.query_one(DirectoryTree)
         label = tree.process_label(str(value.absolute()))
         data = DirEntry(value.absolute(), True)

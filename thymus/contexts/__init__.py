@@ -1,11 +1,11 @@
 __all__ = (
     'Context',
+    'ContextResponse',
     'JunosContext',
 )
 
-__version__ = '0.1.0'
-
 from .context import (
     Context,
+    ContextResponse,
     JunosContext,
 )

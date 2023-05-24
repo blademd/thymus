@@ -188,10 +188,11 @@ def construct_tree(data: list[str], delimiter='^') -> Root:
     '''
     root = Root(name='root', version='', children=[], stubs=[], delimiter=delimiter)
     current_node = root
+    section_regexp = r'^[^{]+{(?:\s##\s[^\n]+)?$'
     for line in data:
         stripped = line.strip()
         if '{' in stripped and '}' not in stripped and ';' not in stripped:
-            if not re.match(r'^(?:.+\s){1,2}{(?:\s##\s.+)?$', stripped, re.I):
+            if not re.match(section_regexp, stripped, re.I) and not re.search(r'is not defined$', stripped):
                 raise Exception('Incorrect configuration format detected.')
             section_name = stripped[:-2]  # skip ' {' in the end of the line
             node = Node(
