@@ -23,7 +23,7 @@ class JunosLexer(RegexLexer):
         'root': [
             # STANDALONE COMMENT
             (
-                r'(\s*)(##? [^\n]+)',
+                r'(\s*)(##?(?:\s+[^\n]+)?)',
                 bygroups(
                     Whitespace,
                     Comment
@@ -118,6 +118,15 @@ class JunosLexer(RegexLexer):
             # "TEXT"
             (
                 r'(\s*)((?<=\s)".+"(?=;|\s))',
+                bygroups(
+                    Whitespace,
+                    Text
+                ),
+                'stager'
+            ),
+            # 'TEXT'
+            (
+                r'(\s*)((?<=\s)\'.+\'(?=;|\s))',
                 bygroups(
                     Whitespace,
                     Text
@@ -221,6 +230,25 @@ class JunosLexer(RegexLexer):
             # "TEXT" IN A SQUARES BLOCK
             (
                 r'(\s*)("[^"]+")(\s)',
+                bygroups(
+                    Whitespace,
+                    Text,
+                    Whitespace
+                ),
+                '#push'
+            ),
+            # 'TEXT' (NOT GREEDY)
+            (
+                r'(\s*)((?<=\s)\'.+?\'(?=;|\s))',
+                bygroups(
+                    Whitespace,
+                    Text
+                ),
+                '#push'
+            ),
+            # 'TEXT' IN A SQUARES BLOCK
+            (
+                r'(\s*)(\'[^\']+\')(\s)',
                 bygroups(
                     Whitespace,
                     Text,

@@ -1,14 +1,6 @@
-#main-app-log {
-    height: auto;
-    overflow-x: hidden;
-}
-
-#main-screens-section {
-    height: auto;
-}
-
 #main-welcome-out {
-    dock: top;
+    content-align: center middle;
+    height: 1fr;
 }
 
 /* OPEN DIALOG DATA */
@@ -46,19 +38,93 @@
     margin-left: 1;
 }
 
+/* QUIT MODAL DATA */
+
+QuitApp {
+    align: center middle;
+    background: $primary 30%;
+}
+
+QuitScreen {
+    align: center middle;
+    background: $primary 30%;
+}
+
+#qs-dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 60;
+    height: 11;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+#qs-question {
+    column-span: 2;
+    height: 1fr;
+    width: 1fr;
+    content-align: center middle;
+}
+
+#qs-quit {
+    width: 100%;
+}
+
+#qs-cancel {
+    width: 100%;
+}
+
+/* CONTEXT LIST SCREEN DATA */
+ContextListScreen {
+    align: center middle;
+    background: $primary 30%;
+}
+
+#cm-options {
+    width: 70%;
+    height: 80%;
+}
+
+/* ERROR SCREEN DATA */
+ErrorScreen {
+    align: center middle;
+    background: $primary 30%;
+}
+
+#es-dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 60;
+    height: 11;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+#es-err-msg {
+    column-span: 2;
+    height: 1fr;
+    width: 1fr;
+    content-align: center middle;
+}
+
+#es-quit {
+    width: 100%;
+    content-align: center middle;
+}
+
 /* WS DATA */
 
 #ws-main-in {
-    /* border: solid $accent; */
     border: none;
     padding-top: 1;
     padding-bottom: 1;
-    /* height: 1; */
 }
 
 #ws-path-line {
-    /* border: solid yellow; */
-    /* margin-left: 1; */
     background: $secondary-background-lighten-3;
 }
 
@@ -74,11 +140,6 @@
 }
 
 #ws-right-bottom-controls {
-    /* border: solid salmon; */
     height: auto;
     dock: bottom;
 }
-
-/* #ws-main-out-container {
-    border: solid yellow;
-} */

@@ -18,7 +18,7 @@ __all__ = (
 
 __version__ = '0.1'
 
-from .jparser import (
+from .junos import (
     parser,
     lazy_parser,
     lazy_provide_config,

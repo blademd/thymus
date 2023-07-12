@@ -1,11 +1,19 @@
 __all__ = (
     'Context',
-    'ContextResponse',
-    'JunosContext',
+    'JunOSContext',
+    'IOSContext',
+    'EOSContext',
 )
 
 from .context import (
-    Context,
-    ContextResponse,
-    JunosContext,
+    Context
+)
+from .junos import (
+    JunOSContext,
+)
+from .ios import (
+    IOSContext,
+)
+from .eos import (
+    EOSContext,
 )
