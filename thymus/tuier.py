@@ -1,34 +1,33 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from textual.app import App
 from textual.widgets import (
     Footer,
     Static,
-    TextLog,
-    ListView,
 )
-from textual.containers import Horizontal, Vertical
 from textual.reactive import var
 from rich.text import Text
 
-from typing import TYPE_CHECKING, Optional
-
 from . import __version__ as app_ver
+from . import (
+    WELCOME_TEXT,
+    WELCOME_TEXT_LEN,
+)
 from .app_settings import AppSettings
-from .tui import OpenDialog
+from .tui.open_dialog import OpenDialog
+from .tui.quit_modal import QuitApp
+from .tui.contexts_modal import ContextListScreen
+from .tui.logs_modal import LogsScreen
 
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult
-    from textual.screen import Screen
+    from textual.events import Resize
 
+    import logging
 
-class MExtendedListView(ListView, can_focus=True):
-    def action_select_cursor(self) -> None:
-        if selected := self.highlighted_child:
-            if value := selected.children[0].name:
-                self.app.push_screen(value)
-        return super().action_select_cursor()
 
 class TThymus(App):
     CSS_PATH = 'tui/styles/main.css'
@@ -36,46 +35,48 @@ class TThymus(App):
         'open_file': OpenDialog()
     }
     BINDINGS = [
-        ('ctrl+o', 'push_screen(\'open_file\')', 'Open file'),
-        ('ctrl+d', 'dark_mode', 'Toggle dark mode'),
-        ('ctrl+s', 'main_screen', 'Switch to main'),
+        ('ctrl+o', 'push_screen(\'open_file\')', 'Open File'),
+        ('ctrl+n', 'night_mode', 'Night Mode'),
+        ('ctrl+c', 'request_quit', 'Exit'),
+        ('ctrl+s', 'request_contexts', 'Switch Contexts'),
+        ('ctrl+l', 'request_logs', 'Show Logs'),
     ]
-    default_screen: var['Optional[Screen]'] = var(None)
+    working_screens: var[list[str]] = var([])
     settings: var[AppSettings] = var(AppSettings())
+    logger: var[logging.Logger] = var(None)
+    is_logo_downscaled: var[bool] = var(False)
+    logo: var[Static] = var(None)
 
-    def __log_error(self, error: str) -> None:
-        if error and (log := self.query_one('#main-app-log', TextLog)):
-            log.write(Text(error, style='red'))
+    def __scale_logo(self, is_down: bool) -> None:
+        try:
+            text = f'Thymus {app_ver}' if is_down else WELCOME_TEXT.format(app_ver)
+            self.logo.update(Text(text, justify='center'))
+            self.is_logo_downscaled = is_down
+        except Exception as err:
+            self.logger.debug(f'Logo downscaling error: {err}.')
 
-    def compose(self) -> 'ComposeResult':
+    def compose(self) -> ComposeResult:
         yield Footer()
-        yield Static(Text(f'Thymus ver. {app_ver}.', style='green italic'), id='main-welcome-out')
-        yield Horizontal(
-            Vertical(
-                Static('Application log:'),
-                TextLog(id='main-app-log'),
-            ),
-            Vertical(
-                Static('Open contexts list (select one and press Enter):'),
-                MExtendedListView(id='main-screens-section'),
-            ),
-            id='main-middle-container'
-        )
-
-    def on_compose(self) -> None:
-        self.default_screen = self.screen
+        yield Static(Text(WELCOME_TEXT.format(app_ver), justify='center'), id='main-welcome-out')
 
     def on_ready(self) -> None:
-        self.settings.playback(self.__log_error)
+        self.logger = self.settings.logger
+        self.logo = self.query_one('#main-welcome-out', Static)
 
-    def action_main_screen(self) -> None:
-        if self.default_screen:
-            self.push_screen(self.default_screen)
+    def on_resize(self, event: Resize) -> None:
+        if event.virtual_size.width <= WELCOME_TEXT_LEN and not self.is_logo_downscaled:
+            self.__scale_logo(is_down=True)
+        elif event.virtual_size.width > WELCOME_TEXT_LEN and self.is_logo_downscaled:
+            self.__scale_logo(is_down=False)
 
-    def action_dark_mode(self) -> None:
+    def action_request_quit(self) -> None:
+        self.push_screen(QuitApp())
+
+    def action_request_contexts(self) -> None:
+        self.push_screen(ContextListScreen())
+
+    def action_request_logs(self) -> None:
+        self.push_screen(LogsScreen())
+
+    def action_night_mode(self) -> None:
         self.dark = not self.dark
-
-    async def action_pop_screen(self) -> None:
-        if self.default_screen:
-            self.default_screen.query_one('#main-screens-section', ListView).focus()
-        return await super().action_pop_screen()
