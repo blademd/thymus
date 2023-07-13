@@ -1,3 +1,6 @@
+
+![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/05714622-cdd7-4557-a49d-6aa8ddb51909)
+
 # Thymus
 
 [Thymus](https://en.wikipedia.org/wiki/Thymus_(plant)) — is a config browser. Thymus does not require a connection to any network device (but it can be used itself over SSH from a remote machine). You just need to save a configuration file, open it anytime, and navigate through it. Thymus mimics to CLI of a selected platform.
@@ -9,6 +12,25 @@ Thymus supports:
 * Arista EOS
 
 *This is the early alpha version! So some glitches can be appearing.*
+
+<details>
+	<summary>Screenshots</summary>
+	<hr>
+
+ JunOS context screen
+
+ ![thymus_junos_example](https://github.com/blademd/thymus/assets/1499024/e7b0afe9-2b0d-472b-8c6e-098a5fa1dd53)
+
+ IOS context screen
+
+ ![thymus_ios_example](https://github.com/blademd/thymus/assets/1499024/0dfe16c1-2e79-4175-9ca2-fea5882f176b)
+
+ Compare/diff between two configs (JunOS is just as an example)
+
+ ![thymus_junos_compare_example](https://github.com/blademd/thymus/assets/1499024/81b4b4fd-c1cb-4fe8-8e51-f8c435a71025)
+
+
+</details>
 
 ## Requirements
 
