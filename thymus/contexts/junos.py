@@ -76,6 +76,8 @@ class JunOSContext(Context):
         self.__cursor: Root | Node = self.__tree
         self.__virtual_cursor: Root | Node = self.__tree
         self.spaces = 2
+        if 'match' not in self.keywords['filter']:
+            self.keywords['filter'].append('match')
         if 'wc_filter' not in self.keywords['wildcard']:
             self.keywords['wildcard'].append('wc_filter')
         if 'compare' not in self.keywords['diff']:

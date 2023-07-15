@@ -98,6 +98,17 @@ class IOSLexer(RegexLexer):
                 Name.Constant,
                 stage='stager'
             ),
+            # SPECIAL: NUMERIC RD/RT (DUE TO UNKNOWN GLITCH)
+            wr(
+                r'(\s+)(rd)(\s)(\d+)(:)(\d+)(\n)',
+                Whitespace,
+                Keyword,
+                Whitespace,
+                Number,
+                Text,
+                Number,
+                stage='#push'
+            ),
             # REGULAR INSTRUCTION
             wr(
                 r'(\s*)([^\n\s]+)',
@@ -141,15 +152,6 @@ class IOSLexer(RegexLexer):
                 rf'(\s+)({IPV6_REGEXP}(?:\/\d{1,2})?)(?=\s|\n)',
                 Whitespace,
                 Whitespace,
-                stage='#push'
-            ),
-            # NUMERIC RD/RT
-            wr(
-                r'(\s+)(\d+)(:)(\d+)(?=\s|\n)',
-                Whitespace,
-                Number,
-                Text,
-                Number,
                 stage='#push'
             ),
             # MAC ADDRESS IN A PECULIAR NOTATION

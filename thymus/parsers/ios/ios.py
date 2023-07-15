@@ -36,7 +36,6 @@ class Root:
     stubs: list[str]
     begin: int
     end: int
-    step: int
     is_accessible: bool
 
 @dataclass
@@ -273,7 +272,6 @@ def construct_tree(
         stubs=[],
         begin=0,
         end=0,
-        step=1,
         is_accessible=True
     )
     prev_line: str = ''
@@ -302,9 +300,7 @@ def construct_tree(
         prev_spaces = get_spaces(prev_line)
         spaces = get_spaces(line)
         if spaces > prev_spaces:
-            if not step:
-                step = spaces - prev_spaces
-                current.step = step
+            step = spaces - prev_spaces
             current = make_nodes(prev_line.strip(), current, delimiter)
             current.begin = number
             current.depth = spaces - prev_spaces

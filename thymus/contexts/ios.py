@@ -91,7 +91,8 @@ class IOSContext(Context):
             self.keywords['filter'].append('include')
 
     def __rebuild_tree(self) -> None:
-        self.command_top()
+        self.__tree = None
+        self.__cursor = None
         self.__tree = construct_tree(
             config=self.content,
             delimiter=self.delimiter,
@@ -99,6 +100,7 @@ class IOSContext(Context):
             is_crop=self.__is_crop,
             is_promisc=self.__is_promisc
         )
+        self.__cursor = self.__tree
 
     def __get_node_content(self, node: Root | Node) -> Generator[str, None, None]:
         return lazy_provide_config(self.content, node, self.spaces)
@@ -228,7 +230,12 @@ class IOSContext(Context):
         yield '\n'
         yield from self.__inspect_children(node, node.path)
 
-    def mod_wildcard(self, data: Iterable[str], args: list[str]) -> Generator[str | FabricException, None, None]:
+    def mod_wildcard(
+        self,
+        data: Iterable[str],
+        args: list[str],
+        jump_node: Optional[Node] = None
+    ) -> Generator[str | FabricException, None, None]:
         if not data or len(args) != 1:
             yield FabricException('Incorrect arguments for "wildcard".')
         try:
@@ -241,10 +248,12 @@ class IOSContext(Context):
                 if isinstance(head, Exception):
                     yield head
                 else:
-                    if not self.__cursor.children:
+                    node = jump_node if jump_node else self.__cursor
+                    if not node.children:
                         yield FabricException('No sections at this level.')
                     yield '\n'
-                    for path, child in self.__inspect_children(self.__cursor, self.__cursor.path, is_pair=True):
+                    for path, child in self.__inspect_children(node, node.path, is_pair=True):
+                        self.logger.debug(f'{path} {child.name}')
                         if re.search(regexp, path):
                             yield from self.__get_node_content(child)
             except StopIteration:
@@ -324,7 +333,7 @@ class IOSContext(Context):
                     data = self.mod_count(data, elem[1:])
                     break
                 elif command in self.keywords['wildcard']:
-                    data = self.mod_wildcard(data, elem[1:])
+                    data = self.mod_wildcard(data, elem[1:], jump_node)
                 elif command in self.keywords['diff']:
                     __check_leading_mod(command, number, len(elem[1:]), 1)
                     data = self.mod_diff(elem[1:], jump_node)
@@ -423,7 +432,8 @@ class IOSContext(Context):
             if current.name == 'root':
                 break
             current = current.parent
-            steps -= 1
+            if current.is_accessible:
+                steps -= 1
         self.__cursor = current
         return AlertResponse.success()
 
@@ -454,15 +464,12 @@ class IOSContext(Context):
                 else:
                     self.__is_crop = False
                 self.__rebuild_tree()
-                analyze_heuristics(self.__tree, self.delimiter, self.__is_crop)
             elif command == 'promisc':
                 if value in ('on', '1', 1):
                     self.__is_promisc = True
                 else:
                     self.__is_promisc = False
                 self.__rebuild_tree()
-                if self.__is_heuristics:
-                    analyze_heuristics(self.__tree, self.delimiter, self.__is_crop)
             return AlertResponse.success(f'The "set {command}" was successfully modified.')
         else:
             args.appendleft(command)

@@ -17,9 +17,9 @@ from . import (
 )
 from .app_settings import AppSettings
 from .tui.open_dialog import OpenDialog
-from .tui.quit_modal import QuitApp
-from .tui.contexts_modal import ContextListScreen
-from .tui.logs_modal import LogsScreen
+from .tui.modals.quit_modal import QuitApp
+from .tui.modals.contexts_modal import ContextListScreen
+from .tui.modals.logs_modal import LogsScreen
 
 
 if TYPE_CHECKING:

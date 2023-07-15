@@ -13,8 +13,8 @@ if TYPE_CHECKING:
 
     from textual.app import ComposeResult
 
-    from ..tuier import TThymus
-    from .working_screen import WorkingScreen
+    from ...tuier import TThymus
+    from ..working_screen.working_screen import WorkingScreen
 
 
 class QuitApp(ModalScreen):

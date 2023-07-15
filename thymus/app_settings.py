@@ -172,7 +172,6 @@ class AppSettings:
                 err_msg += f'Exception: "{err}".'
                 errors.append(err_msg)
         try:
-            self.__logger.setLevel(logging.INFO)
             formatter = logging.Formatter(LOGGING_FORMAT)
             buf_handler = BufferingHandler(LOGGING_BUF_CAP)
             buf_handler.setFormatter(formatter)
@@ -207,10 +206,30 @@ class AppSettings:
             self.__logger.error(f'{err}')
             self.__is_alert = True
 
+    def __read_config(self) -> None:
+        if not self.__is_dir:
+            return
+        self.__logger.debug(f'Loading a configuration from: {CONFIG_PATH}{CONFIG_NAME}.')
+        data: dict[str, Any] = {}
+        with open(f'{CONFIG_PATH}{CONFIG_NAME}', encoding='utf-8') as f:
+            data = json.load(f)
+            if not data:
+                raise Exception(f'Reading of the config file "{CONFIG_NAME}" was failed.')
+        self.validate_keys(DEFAULT_GLOBALS, data, self.__validate_globals)
+        for platform, store in PLATFORMS.items():
+            if platform_data := data.get(platform):
+                if not hasattr(self, f'_AppSettings__validate_{platform}_key'):
+                    self.__logger.error(f'No validator for {platform.upper()}. Default.')
+                    continue
+                validator = getattr(self, f'_AppSettings__validate_{platform}_key')
+                self.validate_keys(store, platform_data, validator, platform)
+            else:
+                self.__logger.warning(f'No data for {platform.upper()}. Default.')
+
     def __save_config(self) -> None:
         if not self.__is_dir:
             return
-        self.__logger.debug(f'Saving a configuration into the file: {CONFIG_PATH}/{CONFIG_NAME}.')
+        self.__logger.debug(f'Saving a configuration into the file: {CONFIG_PATH}{CONFIG_NAME}.')
         data = self.globals
         for platform, platform_data in PLATFORMS.items():
             data.update(
@@ -218,7 +237,7 @@ class AppSettings:
                     platform: self.__platforms[platform] if self.__platforms.get(platform) else platform_data
                 }
             )
-        with open(f'{CONFIG_PATH}/{CONFIG_NAME}', 'w', encoding='utf-8') as f:
+        with open(f'{CONFIG_PATH}{CONFIG_NAME}', 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4)
             f.flush()
             os.fsync(f.fileno())
@@ -316,26 +335,6 @@ class AppSettings:
         else:
             self.__logger.warning(f'Unknown EOS attribute: {key}. Ignore.')
         return value
-
-    def __read_config(self) -> None:
-        if not self.__is_dir:
-            return
-        self.__logger.debug(f'Loading a configuration from: {CONFIG_PATH}/{CONFIG_NAME}.')
-        data: dict[str, Any] = {}
-        with open(f'{CONFIG_PATH}/{CONFIG_NAME}', encoding='utf-8') as f:
-            data = json.load(f)
-            if not data:
-                raise Exception(f'Reading of the config file "{CONFIG_NAME}" was failed.')
-        self.validate_keys(DEFAULT_GLOBALS, data, self.__validate_globals)
-        for platform, store in PLATFORMS.items():
-            if platform_data := data.get(platform):
-                if not hasattr(self, f'_AppSettings__validate_{platform}_key'):
-                    self.__logger.error(f'No validator for {platform.upper()}. Default.')
-                    continue
-                validator = getattr(self, f'_AppSettings__validate_{platform}_key')
-                self.validate_keys(store, platform_data, validator, platform)
-            else:
-                self.__logger.warning(f'No data for {platform.upper()}. Default.')
 
     def process_command(self, command: str) -> SettingsResponse:
         if not command.startswith('global '):

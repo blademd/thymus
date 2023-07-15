@@ -64,7 +64,7 @@ python -m thymus clier
 
 ## Documentation
 
-Please, refer to [Wiki](https://github.com/blademd/thymus/wiki) (*work in progress*)
+Please, refer to [Wiki](https://github.com/blademd/thymus/wiki).
 
 ## Feedback
 

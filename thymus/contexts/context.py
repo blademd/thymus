@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import reduce
 from collections import deque
 from typing import TYPE_CHECKING
+from logging import Logger, getLogger
 
 from ..responses import AlertResponse
 from ..lexers import CommonLexer
@@ -30,6 +31,7 @@ class Context:
         '__content',
         '__encoding',
         '__spaces',
+        '__logger',
     )
     __names_cache: list[tuple[Context, str]] = []
     delimiter: str = '^'
@@ -74,6 +76,10 @@ class Context:
     def nos_type(self) -> str:
         return ''
 
+    @property
+    def logger(self) -> Logger:
+        return self.__logger
+
     @spaces.setter
     def spaces(self, value: int) -> None:
         if value not in (1, 2, 4):
@@ -93,16 +99,23 @@ class Context:
     @encoding.setter
     def encoding(self, value: str) -> None:
         try:
-            'shlop'.encode(value)
+            'schlop'.encode(value)
             self.__encoding = value
         except LookupError:
             raise ValueError(f'"{value}" is not a correct encoding.')
+
+    @logger.setter
+    def logger(self, value: Logger) -> None:
+        if type(value) is not Logger:
+            raise ValueError('Incorrect type of a logger.')
+        self.__logger = value
 
     def __init__(self, name: str, content: list[str], encoding='utf-8-sig') -> None:
         self.__name = name
         self.__content = content
         self.__encoding = encoding
         self.__spaces = 2
+        self.__logger = getLogger()
 
     def free(self) -> None:
         if (type(self), self.__name) in self.__names_cache:

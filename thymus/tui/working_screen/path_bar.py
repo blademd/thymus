@@ -8,7 +8,7 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from textual.geometry import Size
 
-    from ..tuier import TThymus
+    from ...tuier import TThymus
     from .working_screen import WorkingScreen
 
 

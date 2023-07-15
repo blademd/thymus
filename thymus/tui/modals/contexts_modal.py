@@ -10,7 +10,7 @@ from textual.widgets.option_list import Option, Separator
 if TYPE_CHECKING:
     from textual.app import ComposeResult
 
-    from ..tuier import TThymus
+    from ...tuier import TThymus
 
 
 class ContextListScreen(ModalScreen):
@@ -43,6 +43,3 @@ class ContextListScreen(ModalScreen):
             self.app.push_screen(screen)
         else:
             self.app.switch_screen(screen)  # pushes selected one
-        self.app.logger.debug(f'Switched to screen: {screen}. Screen stack depth: {len(self.app.screen_stack)}.')
-        for screen_name in self.app.screen_stack:
-            self.app.logger.debug(f'Screen name: {str(screen_name.name)}, id: {str(screen_name.id)}.')

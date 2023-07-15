@@ -16,13 +16,13 @@ from rich.text import Text
 from rich.syntax import Syntax, ANSISyntaxTheme
 from rich.style import Style
 
-from ..lexers import SyslogLexer
+from ...lexers import SyslogLexer
 
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult
 
-    from ..tuier import TThymus
+    from ...tuier import TThymus
 
 SYSLOG_DARK_STYLES = {
     Whitespace: Style(color='white'),
@@ -59,7 +59,7 @@ class LogsScreen(ModalScreen):
 
     def on_show(self) -> None:
         control = self.query_one(TextLog)
-        control.write(Text('Current log (Escape to quit):', style='green italic'))
+        control.write(Text('Current log (Esc to quit):', style='green italic'))
         lexer = SyslogLexer()
         theme = ANSISyntaxTheme(SYSLOG_DARK_STYLES)
         if not self.app.dark:

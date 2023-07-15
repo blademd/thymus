@@ -22,9 +22,9 @@
 * Cisco IOS (IOS-XE), Arista EOS support.
 * Now you can close a working context with the Escape key (with a confirmation dialog).
 * Logging system with rotating files. Log files are stored in the "logs/" folder. The config file for the logging is "settings/logging.conf".
-** Logs are accessible inside the Application via a modal dialog (Ctrl+L).
+* * Logs are accessible inside the Application via a modal dialog (Ctrl+L).
 
-# Changes
+## Changes
 
 * Textual version 0.29.0.
 * Main screen was redesigned. It does not contain any active elements anymore.
@@ -59,3 +59,22 @@
 * If the content of two different files was the same `compare`, and `diff` calls crashed the app.
 * An empty input field of a working screen crashed the app after pressing the Enter key.
 * Minor bugs.
+
+# Version 0.1.3.f1-alpha
+
+## Changes
+
+* Folder structure was changed.
+
+## Enhancements
+
+* Now, JunOS has its native `match` keyword for filtering.
+* After the sequence of "| " the auto-complete stops making the experience more smooth.
+
+## Fixes
+
+* IOS/EOS. The heuristics mechanism produced the double output both in the text field and the left sidebar.
+* IOS/EOS. The `up` or `exit` commands did not consider the accessibility of the parent's section. Users could get useless buds.
+* The `level` setting in the "logging.conf" did not work.
+* IOS/EOS. The `wildcard` sub-command did not work with the path argument.
+* IOS/EOS. The parser did not take into account the possible variable length of indentation in a file.

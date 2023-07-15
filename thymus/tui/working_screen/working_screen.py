@@ -12,15 +12,13 @@ from textual.containers import (
     Vertical,
 )
 from textual.widgets import (
-    ListView,
     Input,
     TextLog,
-    Static,
 )
 from rich.text import Text
 from rich.syntax import Syntax
 
-from ..contexts import (
+from ...contexts import (
     JunOSContext,
     IOSContext,
     EOSContext,
@@ -29,7 +27,8 @@ from .extended_textlog import ExtendedTextLog
 from .extended_input import ExtendedInput
 from .status_bar import StatusBar
 from .path_bar import PathBar
-from .quit_modal import QuitScreen
+from .left_sidebar import LeftSidebar
+from ..modals.quit_modal import QuitScreen
 
 
 if TYPE_CHECKING:
@@ -37,9 +36,9 @@ if TYPE_CHECKING:
 
     from textual.app import ComposeResult
 
-    from ..tuier import TThymus
-    from ..contexts import Context
-    from ..responses import Response
+    from ...tuier import TThymus
+    from ...contexts import Context
+    from ...responses import Response
 
 
 PLATFORMS = {
@@ -79,6 +78,7 @@ class WorkingScreen(Screen):
                     self.app.logger.error(m)
                     raise Exception(m, 'logged')
                 self.context: Context = PLATFORMS[nos_type]('', content, encoding)
+                self.context.logger = self.app.logger
                 if hasattr(self.app.settings, nos_type):
                     settings: dict[str, str | int] = getattr(self.app.settings, nos_type)
                     for k, v in settings.items():
@@ -101,7 +101,7 @@ class WorkingScreen(Screen):
     def compose(self) -> ComposeResult:
         with Horizontal(id='ws-right-field'):
             with Container(id='ws-left-sidebar'):
-                yield ListView(id='ws-sections-list')
+                yield LeftSidebar(id='ws-sections-list')
             with Vertical():
                 with Container(id='ws-main-out-container'):
                     yield ExtendedTextLog(id='ws-main-out')

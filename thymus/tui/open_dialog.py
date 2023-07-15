@@ -20,8 +20,8 @@ from textual.widgets import (
 )
 from textual.widgets._directory_tree import DirectoryTree
 
-from .working_screen import WorkingScreen
-from .error_modal import ErrorScreen
+from .working_screen.working_screen import WorkingScreen
+from .modals.error_modal import ErrorScreen
 
 
 if TYPE_CHECKING:
