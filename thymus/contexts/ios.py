@@ -34,6 +34,7 @@ if TYPE_CHECKING:
         from collections.abc import Generator, Iterable
     else:
         from typing import Generator, Iterable
+    from logging import Logger
 
     from ..responses import Response
     from ..parsers.ios import (
@@ -70,14 +71,117 @@ class IOSContext(Context):
     def nos_type(self) -> str:
         return 'IOS'
 
-    def __init__(self, name: str, content: list[str], encoding: str = 'utf-8-sig') -> None:
-        super().__init__(name, content, encoding)
+    @property
+    def heuristics(self) -> bool:
+        return self.__is_heuristics
+
+    @property
+    def crop(self) -> bool:
+        return self.__is_crop
+
+    @property
+    def promisc(self) -> bool:
+        return self.__is_promisc
+
+    @heuristics.setter
+    def heuristics(self, value: str | int | bool) -> None:
+        self_name = self.__class__.__name__
+        if type(value) is bool:
+            self.__is_heuristics = value
+        elif type(value) is str:
+            if value in ('0', 'off'):
+                self.__is_heuristics = False
+            elif value in ('1', 'on'):
+                if self.__is_heuristics:
+                    raise ValueError('The heuristics mode is already active.')
+                self.__is_heuristics = True
+                if hasattr(self, f'_{self_name}__tree') and self.__tree:
+                    analyze_heuristics(self.__tree, self.__tree.delimiter, self.__is_crop)
+            else:
+                raise ValueError(f'Unknown value for heuristics: {value}.')
+        elif type(value) is int:
+            if value == 0:
+                self.__is_heuristics = False
+            elif value == 1:
+                if self.__is_heuristics:
+                    raise ValueError('The heuristics mode is already active.')
+                self.__is_heuristics = True
+                if hasattr(self, f'_{self_name}__tree') and self.__tree:
+                    analyze_heuristics(self.__tree, self.__tree.delimiter, self.__is_crop)
+            else:
+                raise ValueError(f'Unknown value for heuristics: {value}.')
+        else:
+            raise TypeError(f'Incorrect type for crop: {type(value)}.')
+
+    @crop.setter
+    def crop(self, value: str | int | bool) -> None:
+        self_name = self.__class__.__name__
+        if hasattr(self, f'_{self_name}__tree') and self.__tree and not self.__is_heuristics:
+            raise ValueError('The heuristics mode must be present and enabled first.')
+        if type(value) is bool:
+            self.__is_crop = value
+        elif type(value) is str:
+            if value in ('0', 'off'):
+                self.__is_crop = False
+            elif value in ('1', 'on'):
+                self.__is_crop = True
+            else:
+                raise ValueError(f'Unknown value for crop: {value}.')
+        elif type(value) is int:
+            if value == 0:
+                self.__is_crop = False
+            elif value == 1:
+                self.__is_crop = True
+            else:
+                raise ValueError(f'Unknown value for crop: {value}.')
+        else:
+            raise TypeError(f'Incorrect type for crop: {type(value)}.')
+        if hasattr(self, f'_{self_name}__tree') and self.__tree and self.__is_heuristics:
+            self.__rebuild_tree()
+
+    @promisc.setter
+    def promisc(self, value: str | int | bool) -> None:
+        if type(value) is bool:
+            self.__is_promisc = value
+        elif type(value) is str:
+            if value in ('0', 'off'):
+                self.__is_promisc = False
+            elif value in ('1', 'on'):
+                self.__is_promisc = True
+            else:
+                raise ValueError(f'Unknown value for promisc: {value}.')
+        elif type(value) is int:
+            if value == 0:
+                self.__is_promisc = False
+            elif value == 1:
+                self.__is_promisc = True
+            else:
+                raise ValueError(f'Unknown value for promisc: {value}.')
+        else:
+            raise TypeError(f'Incorrect type for promisc: {type(value)}.')
+
+    def __init__(
+        self,
+        name: str,
+        content: list[str],
+        *,
+        encoding: str,
+        settings: dict[str, str | int],
+        logger: Logger
+    ) -> None:
         self.__is_heuristics = False
         self.__is_crop = False
         self.__is_promisc = False
-        self.__tree: Root = construct_tree(self.content, self.delimiter)
+        super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
+        self.__tree: Root = construct_tree(
+            config=self.content,
+            delimiter=self.delimiter,
+            is_heuristics=self.__is_heuristics,
+            is_crop=self.__is_crop,
+            is_promisc=self.__is_promisc
+        )
         if not self.__tree:
-            raise Exception('IOS. Impossible to build a tree.')
+            raise Exception(f'{self.nos_type}. Impossible to build a tree.')
         self.__store.append(self)
         self.__cursor: Root | Node = self.__tree
         self.__virtual_cursor: Root | Node = self.__tree
@@ -101,6 +205,7 @@ class IOSContext(Context):
             is_promisc=self.__is_promisc
         )
         self.__cursor = self.__tree
+        self.logger.debug(f'The tree was rebuilt. {self.nos_type}.')
 
     def __get_node_content(self, node: Root | Node) -> Generator[str, None, None]:
         return lazy_provide_config(self.content, node, self.spaces)
@@ -156,6 +261,12 @@ class IOSContext(Context):
     def free(self) -> None:
         self.__store.remove(self)
         super().free()
+
+    def apply_settings(self, settings: dict[str, str | int]) -> None:
+        if hasattr(self, '__tree') and self.__tree:
+            self.__logger.debug('Trying to apply settings with a completed tree.')
+            return
+        super().apply_settings(settings)
 
     def update_virtual_cursor(self, value: str) -> Generator[str, None, None]:
         '''
@@ -273,9 +384,9 @@ class IOSContext(Context):
         context_name = args[0]
         if self.name == context_name:
             yield FabricException('You can\'t compare the same context.')
-        remote_context: IOSContext = None
+        remote_context: Context = None
         for elem in self.__store:
-            if elem.name == context_name:
+            if elem.name == context_name and type(elem) is type(self):
                 remote_context = elem
                 break
         else:
@@ -436,41 +547,3 @@ class IOSContext(Context):
                 steps -= 1
         self.__cursor = current
         return AlertResponse.success()
-
-    def command_set(self, args: deque[str]) -> Response:
-        if not args:
-            return AlertResponse.error('Not enough arguments for "set".')
-        command = args.popleft()
-        if command in ('heuristics', 'crop', 'promisc',):
-            if len(args) != 1:
-                return AlertResponse.error(f'There must be one argument for "set {command}".')
-            value = args.pop()
-            value = value.lower()
-            if value not in ('on', 'off', '0', '1', 0, 1):
-                return AlertResponse.error(f'Unknown argument for "set {command}": {value}. Use: 0, 1, off, on.')
-            if command == 'heuristics':
-                if value in ('on', '1', 1):
-                    if self.__is_heuristics:
-                        return AlertResponse.error('The heuristics mode is already active.')
-                    self.__is_heuristics = True
-                    analyze_heuristics(self.__tree, self.delimiter, self.__is_crop)
-                else:
-                    self.__is_heuristics = False
-            elif command == 'crop':
-                if not self.__is_heuristics:
-                    return AlertResponse.error('The heuristics mode must be enabled first.')
-                if value in ('on', '1', 1):
-                    self.__is_crop = True
-                else:
-                    self.__is_crop = False
-                self.__rebuild_tree()
-            elif command == 'promisc':
-                if value in ('on', '1', 1):
-                    self.__is_promisc = True
-                else:
-                    self.__is_promisc = False
-                self.__rebuild_tree()
-            return AlertResponse.success(f'The "set {command}" was successfully modified.')
-        else:
-            args.appendleft(command)
-            return super().command_set(args)

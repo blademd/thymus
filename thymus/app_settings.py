@@ -71,10 +71,16 @@ DEFAULT_EOS = {
     'crop': 'off',
     'promisc': 'off',
 }
+DEFAULT_NXOS = {
+    'spaces': 2,
+    'heuristics': 'off',
+    'crop': 'off',
+}
 PLATFORMS = {
     'junos': DEFAULT_JUNOS,
     'ios': DEFAULT_IOS,
     'eos': DEFAULT_EOS,
+    'nxos': DEFAULT_NXOS,
 }
 
 
@@ -102,6 +108,10 @@ class AppSettings:
     @property
     def eos(self) -> dict[str, str | int]:
         return copy(self.__platforms.get('eos', DEFAULT_EOS))
+
+    @property
+    def nxos(self) -> dict[str, str | int]:
+        return copy(self.__platforms.get('nxos', DEFAULT_NXOS))
 
     @property
     def styles(self) -> list[str]:
@@ -334,6 +344,18 @@ class AppSettings:
                 raise Exception
         else:
             self.__logger.warning(f'Unknown EOS attribute: {key}. Ignore.')
+        return value
+
+    def __validate_nxos_key(self, key: str, value: str | int) -> str | int:
+        if key == 'spaces':
+            value = int(value)
+            if value <= 0:
+                raise Exception
+        elif key in ('heuristics', 'crop'):
+            if value not in ('0', '1', 'on', 'off', 0, 1):
+                raise Exception
+        else:
+            self.__logger.warning(f'Unknown NXOS attribute: {key}. Ignore.')
         return value
 
     def process_command(self, command: str) -> SettingsResponse:

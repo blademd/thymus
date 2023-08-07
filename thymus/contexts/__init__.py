@@ -3,6 +3,7 @@ __all__ = (
     'JunOSContext',
     'IOSContext',
     'EOSContext',
+    'NXOSContext',
 )
 
 from .context import (
@@ -16,4 +17,8 @@ from .ios import (
 )
 from .eos import (
     EOSContext,
+)
+
+from .nxos import (
+    NXOSContext
 )

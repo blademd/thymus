@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .working_screen import WorkingScreen
 
 
-class PathBar(Static):
+class PathBar(Static, can_focus=False):
     app: TThymus
     screen: WorkingScreen
 

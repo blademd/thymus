@@ -8,14 +8,14 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from textual.geometry import Size
 
-    from ..tuier import TThymus
+    from ...tuier import TThymus
     from .working_screen import WorkingScreen
 
 LINE_NAMED = '{NOS}  Context:_{CONTEXT}  Spaces:_{SPACES}  Lines:_{LINES}  Theme:_{THEME}  {ENCODING}  {FILENAME}'
 LINE_UNNAMED = '{NOS}  Spaces:_{SPACES}  Lines:_{LINES}  Theme:_{THEME}  {ENCODING}  {FILENAME}'
 
 
-class StatusBar(Static):
+class StatusBar(Static, can_focus=False):
     app: TThymus
     screen: WorkingScreen
 

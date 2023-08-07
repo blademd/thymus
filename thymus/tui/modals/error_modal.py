@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 
 
 class ErrorScreen(ModalScreen):
+    BINDINGS = [
+        ('escape', 'app.pop_screen()', 'Cancel'),
+    ]
+
     def __init__(
         self,
         err_msg: str,

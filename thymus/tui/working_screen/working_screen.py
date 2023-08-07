@@ -13,7 +13,7 @@ from textual.containers import (
 )
 from textual.widgets import (
     Input,
-    TextLog,
+    RichLog,
 )
 from rich.text import Text
 from rich.syntax import Syntax
@@ -22,6 +22,7 @@ from ...contexts import (
     JunOSContext,
     IOSContext,
     EOSContext,
+    NXOSContext,
 )
 from .extended_textlog import ExtendedTextLog
 from .extended_input import ExtendedInput
@@ -41,10 +42,11 @@ if TYPE_CHECKING:
     from ...responses import Response
 
 
-PLATFORMS = {
+PLATFORMS: dict[str, Context] = {
     'junos': JunOSContext,
     'ios': IOSContext,
     'eos': EOSContext,
+    'nxos': NXOSContext,
 }
 
 
@@ -54,6 +56,7 @@ class WorkingScreen(Screen):
     BINDINGS = [
         ('ctrl+b', 'toggle_sidebar', 'Toggle sidebar'),
         ('escape', 'request_quit', 'Quit'),
+        ('n', 'draw', 'Next screen'),
     ]
     filename: var[str] = var('')
     nos_type: var[str] = var('')
@@ -61,42 +64,44 @@ class WorkingScreen(Screen):
     context: var[Context] = var(None)
     draw_data: var[Optional[Response]] = var(None)
 
-    def __init__(self, filename: str, nos_type: str, encoding: str, *args, **kwags) -> None:
-        super().__init__(*args, **kwags)
+    def __init__(
+        self,
+        nos_type: str,
+        encoding: str,
+        filename: str = '',
+        content: list[str] = [],
+        *args,
+        **kwargs
+    ) -> None:
+        super().__init__(*args, **kwargs)
         if nos_type not in PLATFORMS:
-            m = f'Unsupported platform: {nos_type}.'
-            self.app.logger.error(m)
-            raise Exception(m, 'logged')
+            err_msg = f'Unsupported platform: {nos_type}.'
+            self.app.logger.error(err_msg)
+            raise Exception(err_msg, 'logged')
         self.nos_type = nos_type
-        self.filename = filename
         self.encoding = encoding
-        try:
-            with open(filename, encoding=encoding, errors='replace') as f:
-                content = f.readlines()
-                if not content:
-                    m = f'File "{filename}" is empty. Platform: {nos_type}.'
-                    self.app.logger.error(m)
-                    raise Exception(m, 'logged')
-                self.context: Context = PLATFORMS[nos_type]('', content, encoding)
-                self.context.logger = self.app.logger
-                if hasattr(self.app.settings, nos_type):
-                    settings: dict[str, str | int] = getattr(self.app.settings, nos_type)
-                    for k, v in settings.items():
-                        command: deque[str | int] = deque([k, v])
-                        self.app.logger.debug(
-                            f'Setting the "{k}: {v}" for "{nos_type.upper()}" [{filename}].'
-                        )
-                        r = self.context.command_set(command)
-                        if not r.is_ok:
-                            for msg in r.value:
-                                self.app.logger.debug(msg)
-                else:
-                    self.app.logger.error(f'No settings for the platform: {nos_type}. Using defaults.')
-                self.app.logger.info(f'File "{filename}" for the platform "{nos_type}" was opened.')
-        except FileNotFoundError:
-            m = f'Cannot open the file "{filename}", it does not exist. Platform: {nos_type.upper()}.'
-            self.app.logger.error(m)
-            raise Exception(m, 'logged')
+        if filename:
+            self.filename = filename
+            try:
+                content = open(filename, encoding=encoding, errors='replace').readlines()
+            except FileNotFoundError:
+                err_msg = f'Cannot open the file "{filename}", it does not exist. Platform: {nos_type}.'
+                self.app.logger.error(err_msg)
+                raise Exception(err_msg, 'logged')
+        else:
+            self.filename = self.screen.name
+        if not content:
+            err_msg = f'File "{self.filename}" is empty. Platform: {nos_type}.'
+            self.app.logger.error(err_msg)
+            raise Exception(err_msg, 'logged')
+        self.context = PLATFORMS[nos_type](
+            name='',
+            content=content,
+            encoding=encoding,
+            settings=getattr(self.app.settings, nos_type),
+            logger=self.app.logger
+        )
+        self.app.logger.info(f'File "{self.filename}" for the platform "{nos_type}" was opened.')
 
     def compose(self) -> ComposeResult:
         with Horizontal(id='ws-right-field'):
@@ -114,8 +119,7 @@ class WorkingScreen(Screen):
         self.query_one('#ws-main-in', Input).focus()
 
     def __draw(self, multiplier: int = 1) -> None:
-        self.app: TThymus
-        control = self.query_one('#ws-main-out', TextLog)
+        control = self.query_one('#ws-main-out', RichLog)
         theme = self.app.settings.globals['theme']
         height = control.size.height
         width = control.size.width - 2
@@ -140,7 +144,7 @@ class WorkingScreen(Screen):
                     control.write(Text(line, style=color), scroll_end=False)
         except Exception as err:
             control.write(Text(f'Error: {err}', style='red'), scroll_end=False)
-            self.app.logger.debug(f'"{err}" for "{self.nos_type.upper()}" [{self.filename}].')
+            self.app.logger.debug(f'"{err}" for "{self.nos_type}" [{self.filename}].')
             self.draw_data = None
         status_bar = self.query_one('#ws-status-bar', StatusBar)
         status_bar.update_bar()
@@ -149,7 +153,7 @@ class WorkingScreen(Screen):
         multiplier: int = 1
         if data:
             multiplier = 2
-            control = self.query_one('#ws-main-out', TextLog)
+            control = self.query_one('#ws-main-out', RichLog)
             control.clear()
             control.scroll_home(animate=False)
             self.draw_data = data
@@ -167,3 +171,6 @@ class WorkingScreen(Screen):
             sidebar.styles.display = 'none'
         else:
             sidebar.styles.display = 'block'
+
+    def action_draw(self) -> None:
+        self.draw()

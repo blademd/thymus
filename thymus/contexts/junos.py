@@ -35,6 +35,7 @@ if TYPE_CHECKING:
         from collections.abc import Generator, Iterable
     else:
         from typing import Generator, Iterable
+    from logging import Logger
 
     from ..responses import Response
     from ..parsers.junos import (
@@ -67,11 +68,19 @@ class JunOSContext(Context):
     def nos_type(self) -> str:
         return 'JUNOS'
 
-    def __init__(self, name: str, content: list[str], encoding='utf-8-sig') -> None:
-        super().__init__(name, content, encoding)
+    def __init__(
+        self,
+        name: str,
+        content: list[str],
+        *,
+        encoding: str,
+        settings: dict[str, str | int],
+        logger: Logger
+    ) -> None:
+        super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
         self.__tree: Root = construct_tree(self.content, self.delimiter)
         if not self.__tree or not self.__tree.get('children'):
-            raise Exception('JunOS. Impossible to build a tree.')
+            raise Exception(f'{self.nos_type}. Impossible to build a tree.')
         self.__store.append(self)
         self.__cursor: Root | Node = self.__tree
         self.__virtual_cursor: Root | Node = self.__tree
@@ -88,6 +97,12 @@ class JunOSContext(Context):
     def free(self) -> None:
         self.__store.remove(self)
         super().free()
+
+    def apply_settings(self, settings: dict[str, str | int]) -> None:
+        if hasattr(self, '__tree') and self.__tree:
+            self.__logger.debug('Trying to apply settings with a completed tree.')
+            return
+        super().apply_settings(settings)
 
     def __update_virtual_cursor(self, parts: list[str]) -> Generator[str, None, None]:
         if not parts:

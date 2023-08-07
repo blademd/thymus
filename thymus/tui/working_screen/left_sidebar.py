@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from ...tuier import TThymus
 
 
-class LeftSidebar(ListView):
+class LeftSidebar(ListView, can_focus=False):
     app: TThymus
     screen: WorkingScreen
 

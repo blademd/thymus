@@ -81,7 +81,9 @@ class Context:
         return self.__logger
 
     @spaces.setter
-    def spaces(self, value: int) -> None:
+    def spaces(self, value: int | str) -> None:
+        if type(value) is str and value.isdigit():
+            value = int(value)
         if value not in (1, 2, 4):
             raise ValueError('Spaces number can be 1, 2, 4.')
         self.__spaces = value
@@ -110,16 +112,34 @@ class Context:
             raise ValueError('Incorrect type of a logger.')
         self.__logger = value
 
-    def __init__(self, name: str, content: list[str], encoding='utf-8-sig') -> None:
+    def __init__(
+        self,
+        name: str,
+        content: list[str],
+        *,
+        encoding: str,
+        settings: dict[str, str | int],
+        logger: Logger
+    ) -> None:
         self.__name = name
         self.__content = content
         self.__encoding = encoding
+        self.__logger = logger if logger else getLogger()
         self.__spaces = 2
-        self.__logger = getLogger()
+        self.apply_settings(settings)
 
     def free(self) -> None:
         if (type(self), self.__name) in self.__names_cache:
             self.__names_cache.remove((type(self), self.__name))
+
+    def apply_settings(self, settings: dict[str, str | int]) -> None:
+        for k, v in settings.items():
+            try:
+                if type(v) is not str and type(v) is not int:
+                    raise TypeError(f'A value for the key "{k}" has a wrong type: {type(v)}.')
+                setattr(self, k, v)
+            except Exception as err:
+                self.__logger.error(f'{err}')
 
     def command_show(self, args: deque[str] = [], mods: list[list[str]] = []) -> Response:
         raise NotImplementedError
@@ -137,23 +157,18 @@ class Context:
         if not args:
             return AlertResponse.error('Not enough arguments for "set".')
         command = args.popleft()
-        if command in ('name', 'spaces', 'encoding',):
-            if len(args) != 1:
-                return AlertResponse('error', f'There must be one argument for "set {command}".')
-            value = args.pop()
-            try:
-                if command == 'name':
-                    self.name = value
-                elif command == 'spaces':
-                    self.spaces = int(value)
-                elif command == 'encoding':
-                    self.encoding = value
-            except ValueError as err:
-                return AlertResponse.error(f'{err}')
-            else:
-                return AlertResponse.success(f'The "set {command}" was successfully modified.')
-        else:
+        command = command.lower()
+        if len(args) != 1:
+            return AlertResponse('error', f'There must be one argument for "set {command}".')
+        value = args.popleft()
+        value = value.lower()
+        try:
+            setattr(self, command, value)
+        except (TypeError, ValueError) as err:
+            return AlertResponse.error(f'{err}')
+        except AttributeError:
             return AlertResponse.error(f'Unknown argument for "set": {command}.')
+        return AlertResponse.success(f'The "set {command}" was successfully modified.')
 
     def mod_filter(self, data: Iterable[str], args: list[str]) -> Generator[str | FabricException, None, None]:
         if not data or len(args) != 1:
