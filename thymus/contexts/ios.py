@@ -186,7 +186,6 @@ class IOSContext(Context):
         self.__cursor: Root | Node = self.__tree
         self.__virtual_cursor: Root | Node = self.__tree
         self.__virtual_h_cursor: Root | Node = self.__tree
-        self.spaces = 1
         if 'end' not in self.keywords['top']:
             self.keywords['top'].append('end')
         if 'exit' not in self.keywords['up']:
@@ -263,7 +262,8 @@ class IOSContext(Context):
         super().free()
 
     def apply_settings(self, settings: dict[str, str | int]) -> None:
-        if hasattr(self, '__tree') and self.__tree:
+        self_name = self.__class__.__name__
+        if hasattr(self, f'_{self_name}__tree') and self.__tree:
             self.__logger.debug('Trying to apply settings with a completed tree.')
             return
         super().apply_settings(settings)
@@ -412,6 +412,40 @@ class IOSContext(Context):
             list(lazy_provide_config(remote_context.content, peer, remote_context.spaces))
         )
 
+    def mod_contains(
+        self,
+        args: list[str],
+        jump_node: Optional[Node] = []
+    ) -> Generator[str | FabricException, None, None]:
+
+        def replace_path(source: str, head: str) -> str:
+            return source.replace(head, '').replace(self.delimiter, ' ').strip()
+
+        def lookup_child(
+            node: Node,
+            path: str = ''
+        ) -> Generator[str, None, None]:
+            for child in node.children:
+                yield from lookup_child(child, path)
+            if not node.is_accessible:
+                return
+            if re.search(args[0], node.path.replace(self.delimiter, ' ')):
+                yield replace_path(node.path, path)
+            for stub in filter(lambda x: re.search(args[0], x), node.stubs):
+                yield f'{replace_path(node.path, path)}: "{stub}"' if node.path else f'"{stub}"'
+
+        if len(args) != 1:
+            yield FabricException('There must be one argument for "contains".')
+        node = self.__cursor if not jump_node else jump_node
+        if not node.children:
+            yield FabricException('No sections at this level.')
+        try:
+            re.compile(args[0])
+        except re.error:
+            yield FabricException(f'Incorrect regular expression for "contains": {args[0]}.')
+        yield '\n'
+        yield from lookup_child(node, node.path)
+
     def __process_fabric(
         self,
         data: Iterable[str],
@@ -448,6 +482,9 @@ class IOSContext(Context):
                 elif command in self.keywords['diff']:
                     __check_leading_mod(command, number, len(elem[1:]), 1)
                     data = self.mod_diff(elem[1:], jump_node)
+                elif command in self.keywords['contains']:
+                    __check_leading_mod(command, number, len(elem[1:]), 1)
+                    data = self.mod_contains(elem[1:], jump_node)
                 else:
                     raise FabricException(f'Unknown modificator "{command}".')
             head = next(data)

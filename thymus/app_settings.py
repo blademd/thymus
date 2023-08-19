@@ -34,6 +34,8 @@ from . import (
     LOGGING_FILE_ENCODING,
     LOGGING_BUF_CAP,
     N_VALUE_LIMIT,
+    SAVES_DIR,
+    SCREENS_SAVES_DIR,
 )
 from .responses import SettingsResponse
 
@@ -199,6 +201,15 @@ class AppSettings:
 
     def __process_config(self) -> None:
         try:
+            if not os.path.exists(SAVES_DIR):
+                self.__logger.info(f'Creating a saves folder: {SAVES_DIR}.')
+                os.mkdir(SAVES_DIR)
+                os.mkdir(SCREENS_SAVES_DIR)
+            else:
+                if not os.path.exists(SCREENS_SAVES_DIR):
+                    os.mkdir(SCREENS_SAVES_DIR)
+                if not os.path.isdir(SAVES_DIR):
+                    self.__logger.error(f'There is a path "{SAVES_DIR}", but it is not a folder.')
             if not os.path.exists(CONFIG_PATH):
                 self.__logger.info(f'Creating a settings folder: {CONFIG_PATH}.')
                 os.mkdir(CONFIG_PATH)

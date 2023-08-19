@@ -7,6 +7,7 @@ from textual.widgets import Input
 
 from .path_bar import PathBar
 from .left_sidebar import LeftSidebar
+from .extended_textlog import ExtendedTextLog
 
 
 if TYPE_CHECKING:
@@ -24,6 +25,8 @@ class ExtendedInput(Input):
         if self.value.startswith('global '):
             out = self.app.settings.process_command(self.value)
             self.screen.draw(out)
+        elif self.value.strip() == 'help':
+            out = self.screen.print_help()
         elif out := self.screen.context.on_enter(self.value):
             self.screen.draw(out)
         self.screen.query_one('#ws-sections-list', LeftSidebar).clear()
@@ -32,6 +35,8 @@ class ExtendedInput(Input):
         super().action_submit()
 
     async def on_input_changed(self, message: Input.Changed) -> None:
+        if not self.value:
+            self.screen.query_one('#ws-sections-list', LeftSidebar).update('show |')
         self.screen.query_one('#ws-sections-list', LeftSidebar).update(message.value)
 
     def _on_key(self, event: Key) -> None:
@@ -48,7 +53,13 @@ class ExtendedInput(Input):
                         self.cursor_position = len(self.value)
             event.stop()
         elif event.key == 'up':
-            self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_up()
+            if self.value:
+                self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_up()
+            else:
+                self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_up()
         elif event.key == 'down':
-            self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_down()
+            if self.value:
+                self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_down()
+            else:
+                self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_down()
         super()._on_key(event)

@@ -20,4 +20,3 @@ class EOSContext(IOSContext):
         logger: Logger
     ) -> None:
         super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
-        self.spaces = 2

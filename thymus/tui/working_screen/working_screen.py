@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from itertools import islice
-from collections import deque
 
 from textual.screen import Screen
 from textual.reactive import var
@@ -30,6 +29,8 @@ from .status_bar import StatusBar
 from .path_bar import PathBar
 from .left_sidebar import LeftSidebar
 from ..modals.quit_modal import QuitScreen
+from ...responses import RichResponse
+from ... import CONTEXT_HELP
 
 
 if TYPE_CHECKING:
@@ -117,6 +118,8 @@ class WorkingScreen(Screen):
 
     def on_show(self) -> None:
         self.query_one('#ws-main-in', Input).focus()
+        self.query_one('#ws-sections-list', LeftSidebar).update('show |')
+        self.print_help()
 
     def __draw(self, multiplier: int = 1) -> None:
         control = self.query_one('#ws-main-out', RichLog)
@@ -139,6 +142,10 @@ class WorkingScreen(Screen):
                         background_color=color
                     )
                     control.write(syntax, scroll_end=False)
+                elif self.draw_data.rtype == 'rich':
+                    control.markup = True
+                    control.write(line, scroll_end=False)
+                    control.markup = False
                 else:
                     color = 'green' if self.draw_data.is_ok else 'red'
                     control.write(Text(line, style=color), scroll_end=False)
@@ -160,6 +167,25 @@ class WorkingScreen(Screen):
         if not self.draw_data:
             return
         self.__draw(multiplier)
+
+    def print_help(self) -> None:
+        if not self.context:
+            return
+        try:
+            body: list[str] = []
+            body.append(CONTEXT_HELP['header'].format(NOS=self.nos_type.upper()))
+            for k, v in CONTEXT_HELP['singletones'].items():
+                if k in self.context.keywords and self.context.keywords[k]:
+                    body.append(v.format(CMDS=', '.join(self.context.keywords[k])))
+            body.append(CONTEXT_HELP['modificators_header'])
+            for k, v in CONTEXT_HELP['modificators'].items():
+                if k in self.context.keywords and self.context.keywords[k]:
+                    body.append(v.format(CMDS=', '.join(self.context.keywords[k])))
+            body.append(CONTEXT_HELP['footer'])
+            r = RichResponse(body)
+            self.draw(r)
+        except Exception as err:
+            self.app.logger.debug(f'Error has occurred with print_help: {err}.')
 
     def action_request_quit(self) -> None:
         self.app.logger.debug(f'Exit was requested: {self.filename}.')

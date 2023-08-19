@@ -3,6 +3,7 @@ __all__ = (
     'ContextResponse',
     'SettingsResponse',
     'AlertResponse',
+    'RichResponse',
 )
 
 from .responses import (
@@ -10,4 +11,5 @@ from .responses import (
     ContextResponse,
     SettingsResponse,
     AlertResponse,
+    RichResponse,
 )

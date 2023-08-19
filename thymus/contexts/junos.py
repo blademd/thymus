@@ -84,7 +84,6 @@ class JunOSContext(Context):
         self.__store.append(self)
         self.__cursor: Root | Node = self.__tree
         self.__virtual_cursor: Root | Node = self.__tree
-        self.spaces = 2
         if 'match' not in self.keywords['filter']:
             self.keywords['filter'].append('match')
         if 'wc_filter' not in self.keywords['wildcard']:
@@ -99,7 +98,8 @@ class JunOSContext(Context):
         super().free()
 
     def apply_settings(self, settings: dict[str, str | int]) -> None:
-        if hasattr(self, '__tree') and self.__tree:
+        self_name = self.__class__.__name__
+        if hasattr(self, f'_{self_name}__tree') and self.__tree:
             self.__logger.debug('Trying to apply settings with a completed tree.')
             return
         super().apply_settings(settings)
@@ -260,6 +260,35 @@ class JunOSContext(Context):
         yield '\n'
         yield from map(lambda x: x['name'], node['children'])
 
+    def mod_contains(
+        self,
+        args: list[str],
+        jump_node: Optional[Node] = []
+    ) -> Generator[str | FabricException, None, None]:
+
+        def replace_path(source: str, path: str) -> str:
+            return source.replace(path, '').replace(self.delimiter, ' ').strip()
+
+        def lookup_child(node: Root | Node, path: str) -> Generator[str, None, None]:
+            for child in node['children']:
+                yield from lookup_child(child, path)
+            if re.search(args[0], node['name']):
+                yield replace_path(node['path'], path)
+            for stub in filter(lambda x: re.search(args[0], x), node['stubs']):
+                yield f'{replace_path(node["path"], path)}: "{stub}"'
+
+        if len(args) != 1:
+            yield FabricException('There must be one argument for "contains".')
+        node = self.__cursor if not jump_node else jump_node
+        if not node['children']:
+            yield FabricException('No sections at this level.')
+        try:
+            re.compile(args[0])
+        except re.error:
+            yield FabricException(f'Incorrect regular expression for "contains": {args[0]}.')
+        yield '\n'
+        yield from lookup_child(node, node['path'] if 'path' in node else '')
+
     def __process_fabric(
         self,
         data: Iterable[str],
@@ -304,6 +333,9 @@ class JunOSContext(Context):
                 elif command in self.keywords['sections']:
                     __check_leading_mod(command, number, len(elem[1:]))
                     data = self.mod_sections(jump_node)
+                elif command in self.keywords['contains']:
+                    __check_leading_mod(command, number, len(elem[1:]), 1)
+                    data = self.mod_contains(elem[1:], jump_node)
                 else:
                     raise FabricException(f'Unknown modificator "{command}".')
             head: str | FabricException = next(data)

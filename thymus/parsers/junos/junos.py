@@ -237,7 +237,7 @@ def search_node(path: deque[str], node: Node) -> Node | None:
     if not children:
         return
     for child in children:
-        if child['name'] == step:
+        if child['name'].lower() == step.lower():
             if not path:
                 return child
             return search_node(path, child)

@@ -40,3 +40,4 @@ class NetLoader:
             raise Exception('Network has returned an empty result.')
         for line in result.split('\n'):
             self.__data.append(line + '\n')
+        conn.disconnect()

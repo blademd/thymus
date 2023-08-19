@@ -26,7 +26,6 @@ class NXOSContext(IOSContext):
     ) -> None:
         settings['promisc'] = 1
         super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
-        self.spaces = 2
 
     def command_set(self, args: deque[str]) -> Response:
         if args:

@@ -5,6 +5,7 @@ from collections import deque
 from typing import TYPE_CHECKING
 from logging import Logger, getLogger
 
+from .. import SAVES_DIR
 from ..responses import AlertResponse
 from ..lexers import CommonLexer
 
@@ -40,7 +41,7 @@ class Context:
         'show': ['show'],
         'top': ['top'],
         'up': ['up'],
-        'filter': ['filter'],
+        'filter': ['filter', 'grep'],
         'wildcard': ['wildcard'],
         'stubs': ['stubs'],
         'sections': ['sections'],
@@ -49,6 +50,9 @@ class Context:
         'count': ['count'],
         'diff': ['diff'],
         'set': ['set'],
+        'contains': ['contains'],
+        'help': ['help'],
+        'global': ['global'],
     }
     lexer: CommonLexer = CommonLexer
 
@@ -198,15 +202,18 @@ class Context:
                 if isinstance(head, Exception):
                     yield head
                 else:
-                    with open(destination, 'w', encoding=self.encoding) as f:
+                    place_to_save = destination
+                    if os.path.exists(SAVES_DIR) and os.path.isdir(SAVES_DIR):
+                        place_to_save = f'{SAVES_DIR}{destination}'
+                    with open(place_to_save, 'w', encoding=self.encoding) as f:
                         for line in data:
                             f.write(f'{line}\n')
                         f.flush()
                         os.fsync(f.fileno())
                         yield '\n'
-                        yield f'File "{destination}" was successfully saved.'
+                        yield f'File "{place_to_save}" was successfully saved.'
             except FileNotFoundError:
-                yield FabricException(f'No such file or directory for "save": {destination}.')
+                yield FabricException(f'No such file or directory for "save": {place_to_save}.')
             except StopIteration:
                 yield FabricException
         else:

@@ -56,3 +56,9 @@ class AlertResponse(Response):
 
 class ContextResponse(Response):
     rtype: str = 'data'
+
+class RichResponse(Response):
+    rtype: str = 'rich'
+
+    def __init__(self, value: str | Iterable[str]) -> None:
+        super().__init__('success', value)
