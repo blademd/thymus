@@ -50,6 +50,7 @@ class IOSContext(Context):
         '__virtual_cursor',
         '__virtual_h_cursor',
         '__is_heuristics',
+        '__is_base_heuristics',
         '__is_crop',
         '__is_promisc',
     )
@@ -76,6 +77,10 @@ class IOSContext(Context):
         return self.__is_heuristics
 
     @property
+    def base_heuristics(self) -> bool:
+        return self.__is_base_heuristics
+
+    @property
     def crop(self) -> bool:
         return self.__is_crop
 
@@ -92,7 +97,7 @@ class IOSContext(Context):
             if value in ('0', 'off'):
                 self.__is_heuristics = False
             elif value in ('1', 'on'):
-                if self.__is_heuristics:
+                if self.__is_heuristics and hasattr(self, f'_{self_name}__tree') and self.__tree:
                     raise ValueError('The heuristics mode is already active.')
                 self.__is_heuristics = True
                 if hasattr(self, f'_{self_name}__tree') and self.__tree:
@@ -111,7 +116,35 @@ class IOSContext(Context):
             else:
                 raise ValueError(f'Unknown value for heuristics: {value}.')
         else:
-            raise TypeError(f'Incorrect type for crop: {type(value)}.')
+            raise TypeError(f'Incorrect type for heuristics: {type(value)}.')
+
+    @base_heuristics.setter
+    def base_heuristics(self, value: str | int | bool) -> None:
+        self_name = self.__class__.__name__
+        if type(value) is bool:
+            self.__is_base_heuristics = value
+        elif type(value) is str:
+            if value in ('0', 'off'):
+                self.__is_base_heuristics = False
+            elif value in ('1', 'on'):
+                if self.__is_base_heuristics and hasattr(self, f'_{self_name}__tree') and self.__tree:
+                    raise ValueError('The base heuristics mode is already active.')
+                self.__is_base_heuristics = True
+            else:
+                raise ValueError(f'Unknown value for base heuristics: {value}.')
+        elif type(value) is int:
+            if value == 0:
+                self.__is_base_heuristics = False
+            elif value == 1:
+                if self.__is_base_heuristics:
+                    raise ValueError('The base heuristics mode is already active.')
+                self.__is_base_heuristics = True
+            else:
+                raise ValueError(f'Unknown value for base heuristics: {value}.')
+        else:
+            raise TypeError(f'Incorrect type for base heuristics: {type(value)}.')
+        if hasattr(self, f'_{self_name}__tree') and self.__tree:
+            self.__rebuild_tree()
 
     @crop.setter
     def crop(self, value: str | int | bool) -> None:
@@ -170,6 +203,7 @@ class IOSContext(Context):
         logger: Logger
     ) -> None:
         self.__is_heuristics = False
+        self.__is_base_heuristics = True
         self.__is_crop = False
         self.__is_promisc = False
         super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
@@ -177,6 +211,7 @@ class IOSContext(Context):
             config=self.content,
             delimiter=self.delimiter,
             is_heuristics=self.__is_heuristics,
+            is_base_heuristics=self.__is_base_heuristics,
             is_crop=self.__is_crop,
             is_promisc=self.__is_promisc
         )
@@ -200,6 +235,7 @@ class IOSContext(Context):
             config=self.content,
             delimiter=self.delimiter,
             is_heuristics=self.__is_heuristics,
+            is_base_heuristics=self.__is_base_heuristics,
             is_crop=self.__is_crop,
             is_promisc=self.__is_promisc
         )

@@ -57,6 +57,7 @@ DEFAULT_GLOBALS = {
     'theme': 'monokai',
     'filename_len': 256,
     'sidebar_limit': 64,
+    'sidebar_strict_on_tab': 'on',
 }
 DEFAULT_JUNOS = {
     'spaces': 2,
@@ -64,18 +65,21 @@ DEFAULT_JUNOS = {
 DEFAULT_IOS = {
     'spaces': 1,
     'heuristics': 'off',
+    'base_heuristics': 'on',
     'crop': 'off',
     'promisc': 'off',
 }
 DEFAULT_EOS = {
     'spaces': 2,
     'heuristics': 'off',
+    'base_heuristics': 'on',
     'crop': 'off',
     'promisc': 'off',
 }
 DEFAULT_NXOS = {
     'spaces': 2,
     'heuristics': 'off',
+    'base_heuristics': 'on',
     'crop': 'off',
 }
 PLATFORMS = {
@@ -320,6 +324,9 @@ class AppSettings:
             value = int(value)
             if value <= 0 or value > N_VALUE_LIMIT:
                 raise Exception
+        elif key == 'sidebar_strict_on_tab':
+            if value not in ('0', '1', 'on', 'off', 0, 1):
+                raise Exception
         else:
             self.__logger.warning(f'Unknown global attribute: {key}. Ignore.')
         return value
@@ -338,7 +345,7 @@ class AppSettings:
             value = int(value)
             if value <= 0:
                 raise Exception
-        elif key in ('heuristics', 'crop', 'promisc'):
+        elif key in ('heuristics', 'crop', 'promisc', 'base_heuristics'):
             if value not in ('0', '1', 'on', 'off', 0, 1):
                 raise Exception
         else:
@@ -350,7 +357,7 @@ class AppSettings:
             value = int(value)
             if value <= 0:
                 raise Exception
-        elif key in ('heuristics', 'crop', 'promisc'):
+        elif key in ('heuristics', 'crop', 'promisc', 'base_heuristics'):
             if value not in ('0', '1', 'on', 'off', 0, 1):
                 raise Exception
         else:
@@ -362,12 +369,24 @@ class AppSettings:
             value = int(value)
             if value <= 0:
                 raise Exception
-        elif key in ('heuristics', 'crop'):
+        elif key in ('heuristics', 'crop', 'base_heuristics'):
             if value not in ('0', '1', 'on', 'off', 0, 1):
                 raise Exception
         else:
             self.__logger.warning(f'Unknown NXOS attribute: {key}. Ignore.')
         return value
+
+    def is_bool_set(self, key: str, *, attr_name: str = 'globals') -> bool:
+        '''
+        Be careful! This method considers any integers except 1 as False. 1 is considered as True.
+        If there is no key or no attribute method returns False!
+        '''
+        if not hasattr(self, attr_name):
+            return False
+        attr: dict[str, str | int] = getattr(self, attr_name)
+        if key not in attr or not attr[key]:
+            return False
+        return attr[key] in (1, '1', 'on')
 
     def process_command(self, command: str) -> SettingsResponse:
         if not command.startswith('global '):
@@ -392,6 +411,11 @@ class AppSettings:
                 if len(parts) == 4:
                     return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
                 result: int = self.globals[arg]
+                return SettingsResponse.success(str(result))
+            elif arg == 'sidebar_strict_on_tab':
+                if len(parts) == 4:
+                    return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
+                result: bool = self.is_bool_set(arg)
                 return SettingsResponse.success(str(result))
             elif arg in PLATFORMS:
                 if len(parts) == 4:
@@ -424,16 +448,25 @@ class AppSettings:
                     return SettingsResponse.error(f'Unsupported theme: {value}.')
                 self.__globals[arg] = value
                 self.__save_config()
-                return SettingsResponse.success(f'The {arg} was changed to "{value}".')
+                return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')
             elif arg in ('filename_len', 'sidebar_limit'):
                 if len(parts) > 4:
                     return SettingsResponse.error(f'Too many arguments for "global set {arg}" command.')
                 value = parts[3]
                 if not value.isdigit() or int(value) <= 0 or int(value) > N_VALUE_LIMIT:
-                    return SettingsResponse.error(f'Value must be in (0, {N_VALUE_LIMIT}].')
+                    return SettingsResponse.error(f'Value must be in (0; {N_VALUE_LIMIT}].')
                 self.__globals[arg] = int(value)
                 self.__save_config()
-                return SettingsResponse.success(f'The {arg} was changed to "{value}".')
+                return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')
+            elif arg == 'sidebar_strict_on_tab':
+                if len(parts) > 4:
+                    return SettingsResponse.error(f'Too many arguments for "global set {arg}" command.')
+                value = parts[3]
+                if value not in ('0', '1', 'on', 'off', 0, 1):
+                    raise SettingsResponse.error('Value must be in (0, 1, on, off).')
+                self.__globals[arg] = value
+                self.__save_config()
+                return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')
             elif arg in PLATFORMS:
                 if len(parts) != 5:
                     return SettingsResponse.error(f'Incorrent number of arguments for "global set {arg}" command.')
@@ -451,7 +484,7 @@ class AppSettings:
                 if r:
                     return SettingsResponse.error(r)
                 self.__save_config()
-                return SettingsResponse.success(f'Attribute "{subarg}" was changed to "{value}".')
+                return SettingsResponse.success(f'Attribute "{subarg}" was changed to: {value}.')
             else:
                 return SettingsResponse.error(f'Unknown argument for "global set" command: {arg}.')
         else:

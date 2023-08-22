@@ -1,4 +1,4 @@
-__version__ = '0.1.3.f1.e2-alpha'
+__version__ = '0.1.3.f1.e3-alpha'
 
 CONFIG_PATH = 'thymus/settings/'
 CONFIG_NAME = 'thymus.json'

@@ -50,6 +50,41 @@ class LeftSidebar(ListView, can_focus=False):
         else:
             self.clear()
 
+    def get_replacement(self, value: str) -> str:
+        if self.highlighted_child and self.highlighted_child.name == 'filler':
+            return value
+        if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
+            if len(self.children) > 1:
+                try:
+                    elems = [x.name for x in self.children]
+                    if elems[-1] == 'filler':
+                        elems = elems[:-1]
+                    min_len = min(len(x) for x in elems)
+                    common = ''
+                    for step in range(min_len):
+                        char = elems[0][step]
+                        if all(s[step] == char for s in elems):
+                            common += char
+                        else:
+                            break
+                    if not common:
+                        return value
+                    parts = value.split()
+                    parts[-1] = common
+                    return ' '.join(parts)
+                except Exception as err:
+                    self.app.logger.debug(f'Error during enhanced Tab: {err}.')
+                    return value
+            elif len(self.children):
+                if match := self.screen.context.get_virtual_from(value):
+                    return self.highlighted_child.name.join(value.rsplit(match.strip(), 1))
+            else:
+                return value
+        else:
+            if match := self.screen.context.get_virtual_from(value):
+                return self.highlighted_child.name.join(value.rsplit(match.strip(), 1))
+        return value
+
     @work(exclusive=True, exit_on_error=False)
     async def __update(self, data: Iterable[str]) -> None:
         limit = int(self.app.settings.globals['sidebar_limit'])

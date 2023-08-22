@@ -45,13 +45,12 @@ class ExtendedInput(Input):
                 if self.value[-1] == ' ':
                     self.value = self.value[:-1]
         elif event.key == 'tab':
-            if self.value and self.cursor_position == len(self.value):
-                control = self.screen.query_one('#ws-sections-list', LeftSidebar)
-                if selected := control.highlighted_child:
-                    if selected.name != 'filler' and (match := self.screen.context.get_virtual_from(self.value)):
-                        self.value = selected.name.join(self.value.rsplit(match.strip(), 1))
-                        self.cursor_position = len(self.value)
-            event.stop()
+            if self.value:
+                if self.cursor_position == len(self.value):
+                    control = self.screen.query_one('#ws-sections-list', LeftSidebar)
+                    self.value = control.get_replacement(self.value)
+                    self.cursor_position = len(self.value)
+                event.stop()
         elif event.key == 'up':
             if self.value:
                 self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_up()

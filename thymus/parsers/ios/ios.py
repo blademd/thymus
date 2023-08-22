@@ -284,6 +284,7 @@ def construct_tree(
     *,
     delimiter: str = '^',
     is_heuristics: bool = False,
+    is_base_heuristics: bool = False,
     is_crop: bool = False,
     is_promisc: bool = False
 ) -> Optional[Root]:
@@ -347,7 +348,7 @@ def construct_tree(
             stripped = prev_line.strip()
             if not stripped.startswith('!') and stripped not in STOP_LIST:
                 current.stubs.append(stripped)
-                if current.name == 'root' and re.search(SA_REGEXP, stripped):
+                if current.name == 'root' and is_base_heuristics and re.search(SA_REGEXP, stripped):
                     s_cache.append((number, stripped))
                     current.stubs = current.stubs[:-1]
             if current.name == 'root' and stripped.startswith('version '):
@@ -359,5 +360,6 @@ def construct_tree(
         return
     if is_heuristics:
         analyze_heuristics(current, delimiter, is_crop)
-    analyze_sections(current, delimiter, s_cache)
+    if is_base_heuristics:
+        analyze_sections(current, delimiter, s_cache)
     return current
