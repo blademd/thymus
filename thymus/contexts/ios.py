@@ -311,6 +311,7 @@ class IOSContext(Context):
         '''
         if not value:
             return
+        value = value.lower()
         parts: list[str] = value.split()
         command: str = parts[0]  # command must be top, show, or go
         sub_command: str = ''

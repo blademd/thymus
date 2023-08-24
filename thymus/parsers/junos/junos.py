@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import re
 
-from typing import TypedDict, cast
+from typing import TypedDict, Optional
 from collections import deque
 from copy import copy
 
@@ -168,9 +168,6 @@ def lazy_provide_config(data: Iterable[str], block=' ' * 2) -> Generator[str, No
         yield f'{prepend}{stripped}'
 
 def construct_path(node: Node, delimiter='^') -> str:
-    if type(node) is not dict:
-        raise Exception('Malformed node.')
-    node = cast('Node', node)
     name = node.get('name')
     if not name:
         raise Exception('This node is without a name.')
@@ -219,10 +216,7 @@ def construct_tree(data: list[str], delimiter='^') -> Root:
                     root['version'] = parts[1][:-1]  # skip ';' in the end of version
     return root
 
-def search_node(path: deque[str], node: Node) -> Node | None:
-    if type(node) is not dict:
-        return
-    node = cast('Node', node)
+def search_node(path: deque[str], node: Node) -> Optional[Node]:
     step = path.popleft()
     if '.' in step and node['name'] == 'interfaces':
         try:
@@ -245,8 +239,7 @@ def search_node(path: deque[str], node: Node) -> Node | None:
         if not path:
             return
         extra_step = path.popleft()
-        new_step = f'{step} {extra_step}'
-        path.appendleft(new_step)
+        path.appendleft(f'{step} {extra_step}')
         return search_node(path, node)
 
 def compare_nodes(target: Root | Node, peer: Root | Node) -> Root | Node:

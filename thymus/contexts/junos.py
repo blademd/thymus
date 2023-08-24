@@ -108,14 +108,14 @@ class JunOSContext(Context):
         if not parts:
             return
         for child in self.__virtual_cursor['children']:
-            if child['name'] == parts[0]:
+            if child['name'].lower() == parts[0]:
                 self.__virtual_cursor = child
                 if parts[1:]:
                     yield from self.__update_virtual_cursor(parts[1:])
                 else:
                     yield child['name']
                 break
-            elif (len(parts) > 1 and child['name'] == ' '.join(parts[:2])):
+            elif (len(parts) > 1 and child['name'].lower() == ' '.join(parts[:2])):
                 self.__virtual_cursor = child
                 if parts[2:]:
                     yield from self.__update_virtual_cursor(parts[2:])
@@ -142,6 +142,7 @@ class JunOSContext(Context):
         if not value:
             return
         # little bit hacky here
+        value = value.lower()
         if m := re.search(r'([-a-z0-9\/]+)\.(\d+)', value, re.I):
             value = value.replace(f'{m.group(1)}.{m.group(2)}', f'{m.group(1)} unit {m.group(2)}')
         parts = value.split()
@@ -156,6 +157,7 @@ class JunOSContext(Context):
 
     def get_virtual_from(self, value: str) -> str:
         # little bit hacky here
+        value = value.lower()
         if m := re.search(r'([-a-z0-9\/]+)\.(\d+)', value, re.I):
             value = value.replace(f'{m.group(1)}.{m.group(2)}', f'{m.group(1)} unit {m.group(2)}')
         parts = value.split()
@@ -174,7 +176,7 @@ class JunOSContext(Context):
         if self.__cursor['name'] != 'root':
             path = path.replace(self.__cursor['path'], '')
         path = path.replace(self.delimiter, ' ')
-        path = path.strip()
+        path = path.strip().lower()
         if new_value.startswith(path):
             return new_value.replace(path, '')
         return new_value

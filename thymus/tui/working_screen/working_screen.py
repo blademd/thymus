@@ -118,7 +118,7 @@ class WorkingScreen(Screen):
 
     def on_show(self) -> None:
         self.query_one('#ws-main-in', Input).focus()
-        self.query_one('#ws-sections-list', LeftSidebar).update('show |')
+        self.query_one('#ws-sections-list', LeftSidebar).update('go |')
         self.print_help()
 
     def __draw(self, multiplier: int = 1) -> None:
