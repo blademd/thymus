@@ -63,7 +63,7 @@ class LeftSidebar(ListView, can_focus=False):
                     common = ''
                     for step in range(min_len):
                         char = elems[0][step]
-                        if all(s[step] == char for s in elems):
+                        if all(s[step].lower() == char.lower() for s in elems):
                             common += char
                         else:
                             break
@@ -77,7 +77,7 @@ class LeftSidebar(ListView, can_focus=False):
                     return value
             elif len(self.children):
                 if match := self.screen.context.get_virtual_from(value):
-                    return self.highlighted_child.name.join(value.rsplit(match.strip(), 1))
+                    return self.highlighted_child.name.join(value.lower().rsplit(match.strip(), 1))
             else:
                 return value
         else:
