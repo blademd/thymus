@@ -55,6 +55,7 @@ if TYPE_CHECKING:
 
 DEFAULT_GLOBALS = {
     'theme': 'monokai',
+    'night_mode': 'off',
     'filename_len': 256,
     'sidebar_limit': 64,
     'sidebar_strict_on_tab': 'on',
@@ -324,7 +325,7 @@ class AppSettings:
             value = int(value)
             if value <= 0 or value > N_VALUE_LIMIT:
                 raise Exception
-        elif key == 'sidebar_strict_on_tab':
+        elif key in ('sidebar_strict_on_tab', 'night_mode'):
             if value not in ('0', '1', 'on', 'off', 0, 1):
                 raise Exception
         else:
@@ -412,7 +413,7 @@ class AppSettings:
                     return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
                 result: int = self.globals[arg]
                 return SettingsResponse.success(str(result))
-            elif arg == 'sidebar_strict_on_tab':
+            elif arg in ('sidebar_strict_on_tab', 'night_mode'):
                 if len(parts) == 4:
                     return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
                 result: bool = self.is_bool_set(arg)
@@ -458,7 +459,7 @@ class AppSettings:
                 self.__globals[arg] = int(value)
                 self.__save_config()
                 return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')
-            elif arg == 'sidebar_strict_on_tab':
+            elif arg in ('sidebar_strict_on_tab', 'night_mode'):
                 if len(parts) > 4:
                     return SettingsResponse.error(f'Too many arguments for "global set {arg}" command.')
                 value = parts[3]

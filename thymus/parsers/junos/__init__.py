@@ -12,6 +12,7 @@ __all__ = (
     'draw_diff_tree',
     'search_inactives',
     'draw_inactive_tree',
+    'make_path',
     'Root',
     'Node',
 )
@@ -32,6 +33,7 @@ from .junos import (
     draw_diff_tree,
     search_inactives,
     draw_inactive_tree,
+    make_path,
     Root,
     Node,
 )

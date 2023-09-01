@@ -53,6 +53,7 @@ class LeftSidebar(ListView, can_focus=False):
     def get_replacement(self, value: str) -> str:
         if self.highlighted_child and self.highlighted_child.name == 'filler':
             return value
+        value = value.lower()
         if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
             if len(self.children) > 1:
                 try:
@@ -77,7 +78,7 @@ class LeftSidebar(ListView, can_focus=False):
                     return value
             elif len(self.children):
                 if match := self.screen.context.get_virtual_from(value):
-                    return self.highlighted_child.name.join(value.lower().rsplit(match.strip(), 1))
+                    return self.highlighted_child.name.join(value.rsplit(match.strip(), 1))
             else:
                 return value
         else:

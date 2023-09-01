@@ -64,6 +64,8 @@ class TThymus(App):
     def on_ready(self) -> None:
         self.logger = self.settings.logger
         self.logo = self.query_one('#main-welcome-out', Static)
+        if not self.settings.is_bool_set('night_mode'):
+            self.dark = False
 
     def on_resize(self, event: Resize) -> None:
         if event.virtual_size.width <= WELCOME_TEXT_LEN and not self.is_logo_downscaled:
@@ -82,6 +84,10 @@ class TThymus(App):
 
     def action_night_mode(self) -> None:
         self.dark = not self.dark
+        if self.settings.is_bool_set('night_mode'):
+            self.settings.process_command('global set night_mode off')
+        else:
+            self.settings.process_command('global set night_mode on')
 
     def action_screenshot(self) -> None:
         try:

@@ -20,7 +20,7 @@ class ExtendedInput(Input):
     screen: WorkingScreen
 
     def action_submit(self) -> None:
-        if not self.screen.context:
+        if not self.screen.context or not self.value:
             return
         if self.value.startswith('global '):
             out = self.app.settings.process_command(self.value)
@@ -52,13 +52,19 @@ class ExtendedInput(Input):
                     self.cursor_position = len(self.value)
                 event.stop()
         elif event.key == 'up':
-            if self.value:
-                self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_up()
-            else:
+            if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
                 self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_up()
-        elif event.key == 'down':
-            if self.value:
-                self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_down()
             else:
+                if self.value:
+                    self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_up()
+                else:
+                    self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_up()
+        elif event.key == 'down':
+            if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
                 self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_down()
+            else:
+                if self.value:
+                    self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_down()
+                else:
+                    self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_down()
         super()._on_key(event)

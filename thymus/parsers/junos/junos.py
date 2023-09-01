@@ -70,6 +70,8 @@ def lazy_parser(data: Iterable[str], path: str, delimiter='^') -> Generator[str,
         if '{' in stripped and '}' not in stripped and ';' not in stripped:
             sections.append(stripped)
         elif '}' in stripped and '{' not in stripped and ';' not in stripped:
+            if parts == [x[:-2] for x in sections]:
+                return
             sections.pop()
         if parts == [x[:-2] for x in sections[:plen]]:
             if stripped and not ('{' in stripped and '}' in stripped):
@@ -325,3 +327,6 @@ def draw_inactive_tree(tree: Root | Node, start: str) -> Generator[str, None, No
         yield stub
     if tree['name'] != start:
         yield '}'
+
+def make_path(line_path: str) -> deque[str]:
+    return deque(line_path.split())
