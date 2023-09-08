@@ -104,31 +104,37 @@ class JunOSContext(Context):
             return
         super().apply_settings(settings)
 
-    def __update_virtual_cursor(self, parts: list[str]) -> Generator[str, None, None]:
-        if not parts:
+    def __update_virtual_cursor(self, parts: deque[str]) -> Generator[str, None, None]:
+        def get_heads(node: Root | Node, comp: str) -> Generator[str, None, None]:
+            for child in filter(lambda x: x['name'].lower().startswith(comp), node['children']):
+                yield child['name']
+
+        if not parts or not self.__virtual_cursor['children']:
+            return
+        head = parts.popleft()
+        if head == '|':
+            # enlist all possible sections
+            yield from map(lambda x: x['name'], self.__virtual_cursor['children'])
             return
         for child in self.__virtual_cursor['children']:
-            if child['name'].lower() == parts[0]:
+            if child['name'].lower() == head:
                 self.__virtual_cursor = child
-                if parts[1:]:
-                    yield from self.__update_virtual_cursor(parts[1:])
+                if not parts:
+                    # nothing left to check in the path
+                    # return all encounters
+                    yield from get_heads(child['parent'], head)
                 else:
-                    yield child['name']
-                break
-            elif (len(parts) > 1 and child['name'].lower() == ' '.join(parts[:2])):
-                self.__virtual_cursor = child
-                if parts[2:]:
-                    yield from self.__update_virtual_cursor(parts[2:])
-                else:
-                    yield child['name']
-                break
+                    yield from self.__update_virtual_cursor(parts)
+                return  # we have found all encounters at this stage and can leave
+        # no encounters have been found
+        if parts:
+            # let's see if we can find a doubled match
+            extra = parts.popleft()
+            parts.appendleft(f'{head} {extra}')
+            yield from self.__update_virtual_cursor(parts)
         else:
-            value = parts[0]
-            if len(parts) > 1:
-                value = f'{parts[0]} {parts[1]}'
-            for child in self.__virtual_cursor['children']:
-                if re.search(rf'^{value}', child['name'], re.I):
-                    yield child['name']
+            # showing all sections that names start with the head
+            yield from get_heads(self.__virtual_cursor, head)
 
     def __prepand_nop(self, data: Iterable[str]) -> Generator[str, None, None]:
         '''
@@ -149,11 +155,11 @@ class JunOSContext(Context):
         if parts[0] in self.keywords['top']:
             if len(parts) > 2 and (parts[1] in self.keywords['show'] or parts[1] in self.keywords['go']):
                 self.__virtual_cursor = self.__tree
-                yield from self.__update_virtual_cursor(parts[2:])
+                yield from self.__update_virtual_cursor(deque(parts[2:]))
         elif parts[0] in self.keywords['show'] or parts[0] in self.keywords['go']:
             if len(parts) != 1:
                 self.__virtual_cursor = self.__cursor
-                yield from self.__update_virtual_cursor(parts[1:])
+                yield from self.__update_virtual_cursor(deque(parts[1:]))
 
     def get_virtual_from(self, value: str) -> str:
         # little bit hacky here
@@ -174,11 +180,11 @@ class JunOSContext(Context):
             return new_value
         path = self.__virtual_cursor['path']
         if self.__cursor['name'] != 'root':
-            path = path.replace(self.__cursor['path'], '')
+            path = path.replace(self.__cursor['path'], '', 1)
         path = path.replace(self.delimiter, ' ')
         path = path.strip().lower()
         if new_value.startswith(path):
-            return new_value.replace(path, '')
+            return new_value.replace(path, '', 1)
         return new_value
 
     def mod_wildcard(self, data: Iterable[str], args: list[str]) -> Generator[str | FabricException, None, None]:

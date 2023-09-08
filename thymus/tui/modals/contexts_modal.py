@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from textual.app import ComposeResult
 
     from ...tuier import TThymus
+    from ..working_screen.working_screen import WorkingScreen
 
 
 class ContextListScreen(ModalScreen):
@@ -32,9 +33,12 @@ class ContextListScreen(ModalScreen):
         header = control.get_option_at_index(0)
         header.disabled = True
         for screen_name in self.app.working_screens:
-            screen = self.app.get_screen(screen_name)
+            screen: WorkingScreen = self.app.get_screen(screen_name)
             if hasattr(screen, 'filename') and hasattr(screen, 'nos_type'):
-                control.add_option(Option(f'{screen.nos_type.upper()}: {screen.filename}', id=screen.name))
+                if screen.context.name:
+                    control.add_option(Option(f'{screen.nos_type.upper()}: {screen.context.name}', id=screen.name))
+                else:
+                    control.add_option(Option(f'{screen.nos_type.upper()}: {screen.filename}', id=screen.name))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         screen = event.option.id

@@ -23,6 +23,7 @@ from ..parsers.ios import (
     search_h_node,
 )
 from ..lexers import IOSLexer
+from ..misc import find_common
 
 import sys
 import re
@@ -270,28 +271,27 @@ class IOSContext(Context):
             else:
                 yield from self.__inspect_children(child, parent_path, is_pair=is_pair)
 
-    def __update_virtual_cursor(self, parts: list[str], *, is_heuristics: bool = False) -> Generator[str, None, None]:
-        target: list[Node] = []
-        if is_heuristics:
-            target = self.__virtual_h_cursor.heuristics
-        else:
-            target = self.__virtual_cursor.children
+    def __update_virtual_cursor(self, parts: deque[str], *, is_heuristics: bool = False) -> Generator[str, None, None]:
+        # is_heuristics here is a marker that sports which cursor and its nodes to use
+        target = self.__virtual_h_cursor.heuristics if is_heuristics else self.__virtual_cursor.children
+        head = parts.popleft()
+        if head == '|':
+            yield from map(lambda x: x.name, target)
         for child in target:
             # We ignore `is_accessible` flag because the virtual cursors are actually virtual.
-            if child.name == parts[0]:
+            if child.name == head:
                 if is_heuristics:
                     self.__virtual_h_cursor = child
                 else:
                     self.__virtual_cursor = child
-                if parts[1:]:
-                    yield from self.__update_virtual_cursor(parts[1:], is_heuristics=is_heuristics)
+                if parts:
+                    yield from self.__update_virtual_cursor(parts, is_heuristics=is_heuristics)
                 else:
-                    yield child.name
-                break
-        else:
-            # a child wasn't found
-            # so we try to get all matches instead
-            yield from filter(lambda x: re.search(rf'^{parts[0]}', x, re.I), map(lambda x: x.name, target))
+                    yield from filter(lambda x: x.lower().startswith(head), map(lambda x: x.name, target))
+                return
+        # a child wasn't found
+        # so we try to get all matches instead
+        yield from filter(lambda x: x.lower().startswith(head), map(lambda x: x.name, target))
 
     def free(self) -> None:
         self.__store.remove(self)
@@ -335,13 +335,14 @@ class IOSContext(Context):
             offset = 1
         else:
             return
+        data = deque(parts[offset:])
         if self.__is_heuristics and command not in self.keywords['go']:
             yield from chain(
-                self.__update_virtual_cursor(copy(parts[offset:]), is_heuristics=False),
-                self.__update_virtual_cursor(copy(parts[offset:]), is_heuristics=True)
+                self.__update_virtual_cursor(copy(data), is_heuristics=False),
+                self.__update_virtual_cursor(copy(data), is_heuristics=True)
             )
         else:
-            yield from self.__update_virtual_cursor(parts[offset:], is_heuristics=False)
+            yield from self.__update_virtual_cursor(data, is_heuristics=False)
 
     def get_virtual_from(self, value: str) -> str:
         '''
@@ -362,7 +363,23 @@ class IOSContext(Context):
             parts = parts[1:]
         else:
             return ''
-        return parts[-1].strip()
+        input = ' '.join(parts)
+        current_path = self.__cursor.path.replace(self.delimiter, ' ')
+        virtual_path = self.__virtual_cursor.path.replace(self.delimiter, ' ')
+        hvirtual_path = self.__virtual_h_cursor.path.replace(self.delimiter, ' ')
+        if current_path:
+            # shorten the virtual paths
+            virtual_path = virtual_path.replace(current_path, '', 1)
+            hvirtual_path = hvirtual_path.replace(current_path, '', 1)
+        virtual_path = virtual_path.strip().lower()
+        hvirtual_path = hvirtual_path.strip().lower()
+        # here we need to find out which the virtual path have more in common with the input
+        first = find_common([virtual_path, input])
+        second = find_common([hvirtual_path, input])
+        if len(first) == len(second) or len(first) > len(second):
+            return input.replace(first, '', 1)
+        else:
+            return input.replace(second, '', 1)
 
     def mod_stubs(self, jump_node: Optional[Node] = None) -> Generator[str | FabricException, None, None]:
         node = self.__cursor if not jump_node else jump_node

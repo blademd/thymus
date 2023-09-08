@@ -1,7 +1,7 @@
 
 ![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/05714622-cdd7-4557-a49d-6aa8ddb51909)
 
-# Thymus (experimental)
+# Thymus
 
 [Thymus](https://en.wikipedia.org/wiki/Thymus_(plant)) — is a config browser. Thymus does not require a connection to any network device (but it can be used itself over SSH from a remote machine). You just need to save a configuration file, open it anytime, and navigate through it. Thymus mimics to CLI of a selected platform.
 
@@ -34,11 +34,7 @@ Thymus supports:
 
 ## Requirements
 
-Python **3.8.1**.
-
-Thymus uses [Textual](https://github.com/Textualize/textual) as its TUI part so all the requirements of the latter are applicable to the former. There are no additional requirements (except your courage for sure).
-
-As the experimental version, Thymus uses [Netmiko](https://github.com/ktbyers/netmiko).
+Python **3.8.1**. Please, see also the `requirements.txt`.
 
 ## Modes
 

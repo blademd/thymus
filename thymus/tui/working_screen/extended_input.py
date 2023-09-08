@@ -35,36 +35,44 @@ class ExtendedInput(Input):
         super().action_submit()
 
     async def on_input_changed(self, message: Input.Changed) -> None:
-        if not self.value:
-            self.screen.query_one('#ws-sections-list', LeftSidebar).update('show |')
-        self.screen.query_one('#ws-sections-list', LeftSidebar).update(message.value)
+        param = 'go |'
+        sidebar = self.screen.query_one('#ws-sections-list', LeftSidebar)
+        if self.value:
+            param = message.value
+            if message.value[-1] == ' ':
+                param += '|'
+        sidebar.update(param)
 
     def _on_key(self, event: Key) -> None:
-        if event.key == 'space':
-            if self.value:
-                if self.value[-1] == ' ':
-                    self.value = self.value[:-1]
-        elif event.key == 'tab':
+        sidebar = self.screen.query_one('#ws-sections-list', LeftSidebar)
+        textlog = self.screen.query_one('#ws-main-out', ExtendedTextLog)
+        if event.key == 'tab':
             if self.value:
                 if self.cursor_position == len(self.value):
-                    control = self.screen.query_one('#ws-sections-list', LeftSidebar)
-                    self.value = control.get_replacement(self.value)
-                    self.cursor_position = len(self.value)
+                    # cursor is at the end of the input
+                    repl = sidebar.get_replacement(self.value)
+                    if repl != self.value:
+                        if repl[-1] != ' ' and len(sidebar.children) == 1:
+                            # add space to trigger the leftsidebar's update
+                            # implicitly calls the on_input_changed
+                            repl += ' '
+                        self.value = repl
+                        self.cursor_position = len(self.value)
                 event.stop()
         elif event.key == 'up':
             if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
-                self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_up()
+                textlog.action_scroll_up()
             else:
                 if self.value:
-                    self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_up()
+                    sidebar.action_cursor_up()
                 else:
-                    self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_up()
+                    textlog.action_scroll_up()
         elif event.key == 'down':
             if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
-                self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_down()
+                textlog.action_scroll_down()
             else:
                 if self.value:
-                    self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_down()
+                    sidebar.action_cursor_down()
                 else:
-                    self.screen.query_one('#ws-main-out', ExtendedTextLog).action_scroll_down()
+                    textlog.action_scroll_down()
         super()._on_key(event)

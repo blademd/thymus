@@ -9,6 +9,11 @@ from textual.widgets import (
     Label,
 )
 
+from ...misc import (
+    find_common,
+    rreplace,
+)
+
 import sys
 
 
@@ -60,30 +65,22 @@ class LeftSidebar(ListView, can_focus=False):
                     elems = [x.name for x in self.children]
                     if elems[-1] == 'filler':
                         elems = elems[:-1]
-                    min_len = min(len(x) for x in elems)
-                    common = ''
-                    for step in range(min_len):
-                        char = elems[0][step]
-                        if all(s[step].lower() == char.lower() for s in elems):
-                            common += char
-                        else:
-                            break
-                    if not common:
+                    common = find_common(elems)
+                    extra_chars = self.screen.context.get_virtual_from(value)
+                    if not extra_chars or not common:
                         return value
-                    parts = value.split()
-                    parts[-1] = common
-                    return ' '.join(parts)
+                    return rreplace(value, extra_chars, common)
                 except Exception as err:
                     self.app.logger.debug(f'Error during enhanced Tab: {err}.')
                     return value
             elif len(self.children):
                 if match := self.screen.context.get_virtual_from(value):
-                    return self.highlighted_child.name.join(value.rsplit(match.strip(), 1))
+                    return rreplace(value, match, self.highlighted_child.name) if self.highlighted_child else value
             else:
                 return value
         else:
             if match := self.screen.context.get_virtual_from(value):
-                return self.highlighted_child.name.join(value.rsplit(match.strip(), 1))
+                return rreplace(value, match, self.highlighted_child.name) if self.highlighted_child else value
         return value
 
     @work(exclusive=True, exit_on_error=False)

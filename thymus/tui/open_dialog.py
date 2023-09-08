@@ -96,12 +96,14 @@ class OpenDialog(ModalScreen):
             self.__open(filename=filename)
 
     def modal_callback(self, err_msg: str) -> None:
-        # The temporary workaround for https://github.com/Textualize/textual/issues/3064
         self.app.push_screen(ErrorScreen(err_msg))
 
     def freeze_callback(self, is_freeze: bool) -> None:
-        # The temporary workaround for https://github.com/Textualize/textual/issues/3064
         self.query_one('#od-main-container', Horizontal).disabled = is_freeze
+        if is_freeze:
+            self.query_one('#od-nt-loading', LoadingIndicator).styles.display = 'block'
+        else:
+            self.query_one('#od-nt-loading', LoadingIndicator).styles.display = 'none'
 
     @work(exclusive=True, thread=True)
     def open_from_network(self) -> None:
@@ -235,6 +237,7 @@ class OpenDialog(ModalScreen):
             self.open_from_file(value)
         else:
             self.open_from_network()
+        self.query_one('#od-directory-tree').focus()
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         event.stop()

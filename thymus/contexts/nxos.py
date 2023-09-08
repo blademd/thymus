@@ -4,10 +4,8 @@ from collections import deque
 from copy import copy
 from logging import Logger
 
-from thymus.responses import Response
-
 from . import IOSContext
-from ..responses import AlertResponse
+from ..responses import Response, AlertResponse
 
 
 class NXOSContext(IOSContext):
