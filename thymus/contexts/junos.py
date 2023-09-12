@@ -106,8 +106,12 @@ class JunOSContext(Context):
 
     def __update_virtual_cursor(self, parts: deque[str]) -> Generator[str, None, None]:
         def get_heads(node: Root | Node, comp: str) -> Generator[str, None, None]:
-            for child in filter(lambda x: x['name'].lower().startswith(comp), node['children']):
-                yield child['name']
+            for child in node['children']:
+                name = child['name'].lower()
+                if name.startswith('inactive: '):
+                    name = name.replace('inactive: ', '')
+                if name.startswith(comp):
+                    yield name
 
         if not parts or not self.__virtual_cursor['children']:
             return
@@ -117,7 +121,11 @@ class JunOSContext(Context):
             yield from map(lambda x: x['name'], self.__virtual_cursor['children'])
             return
         for child in self.__virtual_cursor['children']:
-            if child['name'].lower() == head:
+            name = child['name']
+            name = name.lower()
+            if name.startswith('inactive: '):
+                name = name.replace('inactive: ', '')
+            if name == head:
                 self.__virtual_cursor = child
                 if not parts:
                     # nothing left to check in the path
@@ -179,6 +187,7 @@ class JunOSContext(Context):
         if self.__virtual_cursor['name'] == 'root':
             return new_value
         path = self.__virtual_cursor['path']
+        path = path.replace('inactive: ', '')
         if self.__cursor['name'] != 'root':
             path = path.replace(self.__cursor['path'], '', 1)
         path = path.replace(self.delimiter, ' ')

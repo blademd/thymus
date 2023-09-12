@@ -220,6 +220,7 @@ def construct_tree(data: list[str], delimiter='^') -> Root:
 
 def search_node(path: deque[str], node: Node) -> Optional[Node]:
     step = path.popleft()
+    step = step.lower()
     if '.' in step and node['name'] == 'interfaces':
         try:
             ifd, ifl = step.split('.')
@@ -233,7 +234,11 @@ def search_node(path: deque[str], node: Node) -> Optional[Node]:
     if not children:
         return
     for child in children:
-        if child['name'].lower() == step.lower():
+        name = child['name']
+        name = name.lower()
+        if name.startswith('inactive: '):
+            name = name.replace('inactive: ', '')
+        if name == step:
             if not path:
                 return child
             return search_node(path, child)
