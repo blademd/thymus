@@ -8,7 +8,7 @@
 Thymus supports:
 
 * Juniper JunOS (and probably other JunOS-like systems, e.g. SR-OS **with** MD-CLI)
-* Cisco IOS/IOS-XE (and probably other IOS-like systems)
+* Cisco IOS/IOS-XE/NX-OS (and probably other IOS-like systems)
 * Arista EOS
 
 *This is the early alpha version! So some glitches can be appearing.*
@@ -34,9 +34,7 @@ Thymus supports:
 
 ## Requirements
 
-Tested with Python **3.8.10**.
-
-Thymus uses [Textual](https://github.com/Textualize/textual) as its TUI part so all the requirements of the latter are applicable to the former. There are no additional requirements (except your courage for sure).
+Python **3.8.1**. Please, see also the `requirements.txt`.
 
 ## Modes
 

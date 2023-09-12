@@ -35,6 +35,7 @@ if TYPE_CHECKING:
         from collections.abc import Generator, Iterable
     else:
         from typing import Generator, Iterable
+    from logging import Logger
 
     from ..responses import Response
     from ..parsers.junos import (
@@ -67,15 +68,22 @@ class JunOSContext(Context):
     def nos_type(self) -> str:
         return 'JUNOS'
 
-    def __init__(self, name: str, content: list[str], encoding='utf-8-sig') -> None:
-        super().__init__(name, content, encoding)
+    def __init__(
+        self,
+        name: str,
+        content: list[str],
+        *,
+        encoding: str,
+        settings: dict[str, str | int],
+        logger: Logger
+    ) -> None:
+        super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
         self.__tree: Root = construct_tree(self.content, self.delimiter)
         if not self.__tree or not self.__tree.get('children'):
-            raise Exception('JunOS. Impossible to build a tree.')
+            raise Exception(f'{self.nos_type}. Impossible to build a tree.')
         self.__store.append(self)
         self.__cursor: Root | Node = self.__tree
         self.__virtual_cursor: Root | Node = self.__tree
-        self.spaces = 2
         if 'match' not in self.keywords['filter']:
             self.keywords['filter'].append('match')
         if 'wc_filter' not in self.keywords['wildcard']:
@@ -89,31 +97,52 @@ class JunOSContext(Context):
         self.__store.remove(self)
         super().free()
 
-    def __update_virtual_cursor(self, parts: list[str]) -> Generator[str, None, None]:
-        if not parts:
+    def apply_settings(self, settings: dict[str, str | int]) -> None:
+        self_name = self.__class__.__name__
+        if hasattr(self, f'_{self_name}__tree') and self.__tree:
+            self.__logger.debug('Trying to apply settings with a completed tree.')
+            return
+        super().apply_settings(settings)
+
+    def __update_virtual_cursor(self, parts: deque[str]) -> Generator[str, None, None]:
+        def get_heads(node: Root | Node, comp: str) -> Generator[str, None, None]:
+            for child in node['children']:
+                name = child['name'].lower()
+                if name.startswith('inactive: '):
+                    name = name.replace('inactive: ', '')
+                if name.startswith(comp):
+                    yield name
+
+        if not parts or not self.__virtual_cursor['children']:
+            return
+        head = parts.popleft()
+        if head == '|':
+            # enlist all possible sections
+            yield from map(lambda x: x['name'], self.__virtual_cursor['children'])
             return
         for child in self.__virtual_cursor['children']:
-            if child['name'] == parts[0]:
+            name = child['name']
+            name = name.lower()
+            if name.startswith('inactive: '):
+                name = name.replace('inactive: ', '')
+            if name == head:
                 self.__virtual_cursor = child
-                if parts[1:]:
-                    yield from self.__update_virtual_cursor(parts[1:])
+                if not parts:
+                    # nothing left to check in the path
+                    # return all encounters
+                    yield from get_heads(child['parent'], head)
                 else:
-                    yield child['name']
-                break
-            elif (len(parts) > 1 and child['name'] == ' '.join(parts[:2])):
-                self.__virtual_cursor = child
-                if parts[2:]:
-                    yield from self.__update_virtual_cursor(parts[2:])
-                else:
-                    yield child['name']
-                break
+                    yield from self.__update_virtual_cursor(parts)
+                return  # we have found all encounters at this stage and can leave
+        # no encounters have been found
+        if parts:
+            # let's see if we can find a doubled match
+            extra = parts.popleft()
+            parts.appendleft(f'{head} {extra}')
+            yield from self.__update_virtual_cursor(parts)
         else:
-            value = parts[0]
-            if len(parts) > 1:
-                value = f'{parts[0]} {parts[1]}'
-            for child in self.__virtual_cursor['children']:
-                if re.search(rf'^{value}', child['name'], re.I):
-                    yield child['name']
+            # showing all sections that names start with the head
+            yield from get_heads(self.__virtual_cursor, head)
 
     def __prepand_nop(self, data: Iterable[str]) -> Generator[str, None, None]:
         '''
@@ -127,20 +156,22 @@ class JunOSContext(Context):
         if not value:
             return
         # little bit hacky here
+        value = value.lower()
         if m := re.search(r'([-a-z0-9\/]+)\.(\d+)', value, re.I):
             value = value.replace(f'{m.group(1)}.{m.group(2)}', f'{m.group(1)} unit {m.group(2)}')
         parts = value.split()
         if parts[0] in self.keywords['top']:
             if len(parts) > 2 and (parts[1] in self.keywords['show'] or parts[1] in self.keywords['go']):
                 self.__virtual_cursor = self.__tree
-                yield from self.__update_virtual_cursor(parts[2:])
+                yield from self.__update_virtual_cursor(deque(parts[2:]))
         elif parts[0] in self.keywords['show'] or parts[0] in self.keywords['go']:
             if len(parts) != 1:
                 self.__virtual_cursor = self.__cursor
-                yield from self.__update_virtual_cursor(parts[1:])
+                yield from self.__update_virtual_cursor(deque(parts[1:]))
 
     def get_virtual_from(self, value: str) -> str:
         # little bit hacky here
+        value = value.lower()
         if m := re.search(r'([-a-z0-9\/]+)\.(\d+)', value, re.I):
             value = value.replace(f'{m.group(1)}.{m.group(2)}', f'{m.group(1)} unit {m.group(2)}')
         parts = value.split()
@@ -156,12 +187,13 @@ class JunOSContext(Context):
         if self.__virtual_cursor['name'] == 'root':
             return new_value
         path = self.__virtual_cursor['path']
+        path = path.replace('inactive: ', '')
         if self.__cursor['name'] != 'root':
-            path = path.replace(self.__cursor['path'], '')
+            path = path.replace(self.__cursor['path'], '', 1)
         path = path.replace(self.delimiter, ' ')
-        path = path.strip()
+        path = path.strip().lower()
         if new_value.startswith(path):
-            return new_value.replace(path, '')
+            return new_value.replace(path, '', 1)
         return new_value
 
     def mod_wildcard(self, data: Iterable[str], args: list[str]) -> Generator[str | FabricException, None, None]:
@@ -245,6 +277,35 @@ class JunOSContext(Context):
         yield '\n'
         yield from map(lambda x: x['name'], node['children'])
 
+    def mod_contains(
+        self,
+        args: list[str],
+        jump_node: Optional[Node] = []
+    ) -> Generator[str | FabricException, None, None]:
+
+        def replace_path(source: str, path: str) -> str:
+            return source.replace(path, '').replace(self.delimiter, ' ').strip()
+
+        def lookup_child(node: Root | Node, path: str) -> Generator[str, None, None]:
+            for child in node['children']:
+                yield from lookup_child(child, path)
+            if re.search(args[0], node['name']):
+                yield replace_path(node['path'], path)
+            for stub in filter(lambda x: re.search(args[0], x), node['stubs']):
+                yield f'{replace_path(node["path"], path)}: "{stub}"'
+
+        if len(args) != 1:
+            yield FabricException('There must be one argument for "contains".')
+        node = self.__cursor if not jump_node else jump_node
+        if not node['children']:
+            yield FabricException('No sections at this level.')
+        try:
+            re.compile(args[0])
+        except re.error:
+            yield FabricException(f'Incorrect regular expression for "contains": {args[0]}.')
+        yield '\n'
+        yield from lookup_child(node, node['path'] if 'path' in node else '')
+
     def __process_fabric(
         self,
         data: Iterable[str],
@@ -289,6 +350,9 @@ class JunOSContext(Context):
                 elif command in self.keywords['sections']:
                     __check_leading_mod(command, number, len(elem[1:]))
                     data = self.mod_sections(jump_node)
+                elif command in self.keywords['contains']:
+                    __check_leading_mod(command, number, len(elem[1:]), 1)
+                    data = self.mod_contains(elem[1:], jump_node)
                 else:
                     raise FabricException(f'Unknown modificator "{command}".')
             head: str | FabricException = next(data)

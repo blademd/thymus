@@ -7,6 +7,7 @@ from textual.widgets import Input
 
 from .path_bar import PathBar
 from .left_sidebar import LeftSidebar
+from .extended_textlog import ExtendedTextLog
 
 
 if TYPE_CHECKING:
@@ -19,11 +20,13 @@ class ExtendedInput(Input):
     screen: WorkingScreen
 
     def action_submit(self) -> None:
-        if not self.screen.context:
+        if not self.screen.context or not self.value:
             return
         if self.value.startswith('global '):
             out = self.app.settings.process_command(self.value)
             self.screen.draw(out)
+        elif self.value.strip() == 'help':
+            out = self.screen.print_help()
         elif out := self.screen.context.on_enter(self.value):
             self.screen.draw(out)
         self.screen.query_one('#ws-sections-list', LeftSidebar).clear()
@@ -32,23 +35,44 @@ class ExtendedInput(Input):
         super().action_submit()
 
     async def on_input_changed(self, message: Input.Changed) -> None:
-        self.screen.query_one('#ws-sections-list', LeftSidebar).update(message.value)
+        param = 'go |'
+        sidebar = self.screen.query_one('#ws-sections-list', LeftSidebar)
+        if self.value:
+            param = message.value
+            if message.value[-1] == ' ':
+                param += '|'
+        sidebar.update(param)
 
     def _on_key(self, event: Key) -> None:
-        if event.key == 'space':
+        sidebar = self.screen.query_one('#ws-sections-list', LeftSidebar)
+        textlog = self.screen.query_one('#ws-main-out', ExtendedTextLog)
+        if event.key == 'tab':
             if self.value:
-                if self.value[-1] == ' ':
-                    self.value = self.value[:-1]
-        elif event.key == 'tab':
-            if self.value and self.cursor_position == len(self.value):
-                control = self.screen.query_one('#ws-sections-list', LeftSidebar)
-                if selected := control.highlighted_child:
-                    if selected.name != 'filler' and (match := self.screen.context.get_virtual_from(self.value)):
-                        self.value = selected.name.join(self.value.rsplit(match.strip(), 1))
+                if self.cursor_position == len(self.value):
+                    # cursor is at the end of the input
+                    repl = sidebar.get_replacement(self.value)
+                    if repl != self.value:
+                        if repl[-1] != ' ' and len(sidebar.children) == 1:
+                            # add space to trigger the leftsidebar's update
+                            # implicitly calls the on_input_changed
+                            repl += ' '
+                        self.value = repl
                         self.cursor_position = len(self.value)
-            event.stop()
+                event.stop()
         elif event.key == 'up':
-            self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_up()
+            if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
+                textlog.action_scroll_up()
+            else:
+                if self.value:
+                    sidebar.action_cursor_up()
+                else:
+                    textlog.action_scroll_up()
         elif event.key == 'down':
-            self.screen.query_one('#ws-sections-list', LeftSidebar).action_cursor_down()
+            if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
+                textlog.action_scroll_down()
+            else:
+                if self.value:
+                    sidebar.action_cursor_down()
+                else:
+                    textlog.action_scroll_down()
         super()._on_key(event)

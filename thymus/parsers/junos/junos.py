@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import re
 
-from typing import TypedDict, cast
+from typing import TypedDict, Optional
 from collections import deque
 from copy import copy
 
@@ -70,6 +70,8 @@ def lazy_parser(data: Iterable[str], path: str, delimiter='^') -> Generator[str,
         if '{' in stripped and '}' not in stripped and ';' not in stripped:
             sections.append(stripped)
         elif '}' in stripped and '{' not in stripped and ';' not in stripped:
+            if parts == [x[:-2] for x in sections]:
+                return
             sections.pop()
         if parts == [x[:-2] for x in sections[:plen]]:
             if stripped and not ('{' in stripped and '}' in stripped):
@@ -168,9 +170,6 @@ def lazy_provide_config(data: Iterable[str], block=' ' * 2) -> Generator[str, No
         yield f'{prepend}{stripped}'
 
 def construct_path(node: Node, delimiter='^') -> str:
-    if type(node) is not dict:
-        raise Exception('Malformed node.')
-    node = cast('Node', node)
     name = node.get('name')
     if not name:
         raise Exception('This node is without a name.')
@@ -219,11 +218,9 @@ def construct_tree(data: list[str], delimiter='^') -> Root:
                     root['version'] = parts[1][:-1]  # skip ';' in the end of version
     return root
 
-def search_node(path: deque[str], node: Node) -> Node | None:
-    if type(node) is not dict:
-        return
-    node = cast('Node', node)
+def search_node(path: deque[str], node: Node) -> Optional[Node]:
     step = path.popleft()
+    step = step.lower()
     if '.' in step and node['name'] == 'interfaces':
         try:
             ifd, ifl = step.split('.')
@@ -237,7 +234,11 @@ def search_node(path: deque[str], node: Node) -> Node | None:
     if not children:
         return
     for child in children:
-        if child['name'] == step:
+        name = child['name']
+        name = name.lower()
+        if name.startswith('inactive: '):
+            name = name.replace('inactive: ', '')
+        if name == step:
             if not path:
                 return child
             return search_node(path, child)
@@ -245,8 +246,7 @@ def search_node(path: deque[str], node: Node) -> Node | None:
         if not path:
             return
         extra_step = path.popleft()
-        new_step = f'{step} {extra_step}'
-        path.appendleft(new_step)
+        path.appendleft(f'{step} {extra_step}')
         return search_node(path, node)
 
 def compare_nodes(target: Root | Node, peer: Root | Node) -> Root | Node:
@@ -332,3 +332,6 @@ def draw_inactive_tree(tree: Root | Node, start: str) -> Generator[str, None, No
         yield stub
     if tree['name'] != start:
         yield '}'
+
+def make_path(line_path: str) -> deque[str]:
+    return deque(line_path.split())

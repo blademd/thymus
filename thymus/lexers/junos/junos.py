@@ -144,7 +144,7 @@ class JunosLexer(RegexLexer):
             ),
             # THE REST (REGULAR)
             (
-                r'(\s*)([a-z0-9-_\./\*,$]+)',
+                r'(\s*)([a-z0-9-_\./\*,$:]+)',
                 bygroups(
                     Whitespace,
                     Keyword

@@ -51,6 +51,13 @@ class IOSLexer(RegexLexer):
                 Comment,
                 Whitespace
             ),
+            # COMMENT WITH "\""
+            wr(
+                r'(\s*)("(?:[^\n]+))(\n)',
+                Whitespace,
+                Text,
+                Whitespace
+            ),
             # SPECIAL: VERSION
             wr(
                 r'(version)(\s)([^\n]+)(\n)',
@@ -78,7 +85,7 @@ class IOSLexer(RegexLexer):
             ),
             # SPECIAL: INTERFACE
             wr(
-                r'(\s*)(interface)(\s)([^\n]+)(\n)',
+                r'(\s*)(interface)(\s)([^\n\s]+)(\n)',
                 Whitespace,
                 Keyword,
                 Whitespace,
@@ -108,6 +115,24 @@ class IOSLexer(RegexLexer):
                 Text,
                 Number,
                 stage='#push'
+            ),
+            # SPECIAL: VLAN
+            wr(
+                r'(\s*)(vlan)(\s)([^\n]+)(\n)',
+                Whitespace,
+                Keyword,
+                Whitespace,
+                Number,
+                Whitespace
+            ),
+            # SPECIAL: NAME
+            wr(
+                r'(\s*)(name)(\s)([^\n]+)(\n)',
+                Whitespace,
+                Keyword,
+                Whitespace,
+                Text,
+                Whitespace
             ),
             # REGULAR INSTRUCTION
             wr(
@@ -140,6 +165,15 @@ class IOSLexer(RegexLexer):
                 Number,
                 stage='#push'
             ),
+            # NUMERIC RD/RT
+            wr(
+                r'(\s+)(\d+)(:)(\d+)(?=\s|\n)',
+                Whitespace,
+                Number,
+                Text,
+                Number,
+                stage='#push'
+            ),
             # IPV4 PREFIX OR ADDRESS
             wr(
                 rf'(\s+)({IPV4_REGEXP}(?:\/\d{1,2})?)(?=\s|\n)',
@@ -159,6 +193,22 @@ class IOSLexer(RegexLexer):
                 r'(\s+)((?:[a-f0-9]{4}\.){2}[a-f0-9]{4})',
                 Whitespace,
                 Whitespace,
+                stage='#push'
+            ),
+            # VLAN
+            wr(
+                r'(\s+)(vlan(?:\sadd)?)(\s)([0-9\s,\-]+\d)',
+                Whitespace,
+                Keyword,
+                Whitespace,
+                Number,
+                stage='#push'
+            ),
+            # SINGLE RANGE
+            wr(
+                r'(\s+)(\d+\-\d+)(?=\s|\n)',
+                Whitespace,
+                Number,
                 stage='#push'
             ),
             # LINKS
@@ -202,7 +252,7 @@ class IOSLexer(RegexLexer):
             ),
             # NUMBER
             wr(
-                r'(\s+)(\d+)(?=\s|\n)',
+                r'(\s+)(\d+(?:\.\d+)?)(?=\s|\n)',
                 Whitespace,
                 Number,
                 stage='#push'

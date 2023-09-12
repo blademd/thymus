@@ -11,7 +11,7 @@ from pygments.token import (
 
 from textual.screen import ModalScreen
 from textual.containers import Container
-from textual.widgets import TextLog
+from textual.widgets import RichLog
 from rich.text import Text
 from rich.syntax import Syntax, ANSISyntaxTheme
 from rich.style import Style
@@ -55,10 +55,10 @@ class LogsScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Container():
-            yield TextLog(id='lm-log')
+            yield RichLog(id='lm-log')
 
     def on_show(self) -> None:
-        control = self.query_one(TextLog)
+        control = self.query_one(RichLog)
         control.write(Text('Current log (Esc to quit):', style='green italic'))
         lexer = SyslogLexer()
         theme = ANSISyntaxTheme(SYSLOG_DARK_STYLES)

@@ -14,6 +14,7 @@ from . import __version__ as app_ver
 from . import (
     WELCOME_TEXT,
     WELCOME_TEXT_LEN,
+    SCREENS_SAVES_DIR,
 )
 from .app_settings import AppSettings
 from .tui.open_dialog import OpenDialog
@@ -40,6 +41,7 @@ class TThymus(App):
         ('ctrl+c', 'request_quit', 'Exit'),
         ('ctrl+s', 'request_contexts', 'Switch Contexts'),
         ('ctrl+l', 'request_logs', 'Show Logs'),
+        ('ctrl+p', 'screenshot', 'Screenshot'),
     ]
     working_screens: var[list[str]] = var([])
     settings: var[AppSettings] = var(AppSettings())
@@ -62,6 +64,8 @@ class TThymus(App):
     def on_ready(self) -> None:
         self.logger = self.settings.logger
         self.logo = self.query_one('#main-welcome-out', Static)
+        if not self.settings.is_bool_set('night_mode'):
+            self.dark = False
 
     def on_resize(self, event: Resize) -> None:
         if event.virtual_size.width <= WELCOME_TEXT_LEN and not self.is_logo_downscaled:
@@ -80,3 +84,13 @@ class TThymus(App):
 
     def action_night_mode(self) -> None:
         self.dark = not self.dark
+        if self.settings.is_bool_set('night_mode'):
+            self.settings.process_command('global set night_mode off')
+        else:
+            self.settings.process_command('global set night_mode on')
+
+    def action_screenshot(self) -> None:
+        try:
+            self.save_screenshot(path=SCREENS_SAVES_DIR)
+        except Exception as err:
+            self.logger.error(f'Cannot save a screenshot: {err}.')

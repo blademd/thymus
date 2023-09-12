@@ -23,6 +23,7 @@ from ..parsers.ios import (
     search_h_node,
 )
 from ..lexers import IOSLexer
+from ..misc import find_common
 
 import sys
 import re
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
         from collections.abc import Generator, Iterable
     else:
         from typing import Generator, Iterable
+    from logging import Logger
 
     from ..responses import Response
     from ..parsers.ios import (
@@ -49,6 +51,7 @@ class IOSContext(Context):
         '__virtual_cursor',
         '__virtual_h_cursor',
         '__is_heuristics',
+        '__is_base_heuristics',
         '__is_crop',
         '__is_promisc',
     )
@@ -70,19 +73,155 @@ class IOSContext(Context):
     def nos_type(self) -> str:
         return 'IOS'
 
-    def __init__(self, name: str, content: list[str], encoding: str = 'utf-8-sig') -> None:
-        super().__init__(name, content, encoding)
+    @property
+    def heuristics(self) -> bool:
+        return self.__is_heuristics
+
+    @property
+    def base_heuristics(self) -> bool:
+        return self.__is_base_heuristics
+
+    @property
+    def crop(self) -> bool:
+        return self.__is_crop
+
+    @property
+    def promisc(self) -> bool:
+        return self.__is_promisc
+
+    @heuristics.setter
+    def heuristics(self, value: str | int | bool) -> None:
+        self_name = self.__class__.__name__
+        if type(value) is bool:
+            self.__is_heuristics = value
+        elif type(value) is str:
+            if value in ('0', 'off'):
+                self.__is_heuristics = False
+            elif value in ('1', 'on'):
+                if self.__is_heuristics and hasattr(self, f'_{self_name}__tree') and self.__tree:
+                    raise ValueError('The heuristics mode is already active.')
+                self.__is_heuristics = True
+                if hasattr(self, f'_{self_name}__tree') and self.__tree:
+                    analyze_heuristics(self.__tree, self.__tree.delimiter, self.__is_crop)
+            else:
+                raise ValueError(f'Unknown value for heuristics: {value}.')
+        elif type(value) is int:
+            if value == 0:
+                self.__is_heuristics = False
+            elif value == 1:
+                if self.__is_heuristics:
+                    raise ValueError('The heuristics mode is already active.')
+                self.__is_heuristics = True
+                if hasattr(self, f'_{self_name}__tree') and self.__tree:
+                    analyze_heuristics(self.__tree, self.__tree.delimiter, self.__is_crop)
+            else:
+                raise ValueError(f'Unknown value for heuristics: {value}.')
+        else:
+            raise TypeError(f'Incorrect type for heuristics: {type(value)}.')
+
+    @base_heuristics.setter
+    def base_heuristics(self, value: str | int | bool) -> None:
+        self_name = self.__class__.__name__
+        if type(value) is bool:
+            self.__is_base_heuristics = value
+        elif type(value) is str:
+            if value in ('0', 'off'):
+                self.__is_base_heuristics = False
+            elif value in ('1', 'on'):
+                if self.__is_base_heuristics and hasattr(self, f'_{self_name}__tree') and self.__tree:
+                    raise ValueError('The base heuristics mode is already active.')
+                self.__is_base_heuristics = True
+            else:
+                raise ValueError(f'Unknown value for base heuristics: {value}.')
+        elif type(value) is int:
+            if value == 0:
+                self.__is_base_heuristics = False
+            elif value == 1:
+                if self.__is_base_heuristics:
+                    raise ValueError('The base heuristics mode is already active.')
+                self.__is_base_heuristics = True
+            else:
+                raise ValueError(f'Unknown value for base heuristics: {value}.')
+        else:
+            raise TypeError(f'Incorrect type for base heuristics: {type(value)}.')
+        if hasattr(self, f'_{self_name}__tree') and self.__tree:
+            self.__rebuild_tree()
+
+    @crop.setter
+    def crop(self, value: str | int | bool) -> None:
+        self_name = self.__class__.__name__
+        if hasattr(self, f'_{self_name}__tree') and self.__tree and not self.__is_heuristics:
+            raise ValueError('The heuristics mode must be present and enabled first.')
+        if type(value) is bool:
+            self.__is_crop = value
+        elif type(value) is str:
+            if value in ('0', 'off'):
+                self.__is_crop = False
+            elif value in ('1', 'on'):
+                self.__is_crop = True
+            else:
+                raise ValueError(f'Unknown value for crop: {value}.')
+        elif type(value) is int:
+            if value == 0:
+                self.__is_crop = False
+            elif value == 1:
+                self.__is_crop = True
+            else:
+                raise ValueError(f'Unknown value for crop: {value}.')
+        else:
+            raise TypeError(f'Incorrect type for crop: {type(value)}.')
+        if hasattr(self, f'_{self_name}__tree') and self.__tree and self.__is_heuristics:
+            self.__rebuild_tree()
+
+    @promisc.setter
+    def promisc(self, value: str | int | bool) -> None:
+        if type(value) is bool:
+            self.__is_promisc = value
+        elif type(value) is str:
+            if value in ('0', 'off'):
+                self.__is_promisc = False
+            elif value in ('1', 'on'):
+                self.__is_promisc = True
+            else:
+                raise ValueError(f'Unknown value for promisc: {value}.')
+        elif type(value) is int:
+            if value == 0:
+                self.__is_promisc = False
+            elif value == 1:
+                self.__is_promisc = True
+            else:
+                raise ValueError(f'Unknown value for promisc: {value}.')
+        else:
+            raise TypeError(f'Incorrect type for promisc: {type(value)}.')
+
+    def __init__(
+        self,
+        name: str,
+        content: list[str],
+        *,
+        encoding: str,
+        settings: dict[str, str | int],
+        logger: Logger
+    ) -> None:
         self.__is_heuristics = False
+        self.__is_base_heuristics = True
         self.__is_crop = False
         self.__is_promisc = False
-        self.__tree: Root = construct_tree(self.content, self.delimiter)
+        super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
+        self.__tree: Root = construct_tree(
+            config=self.content,
+            delimiter=self.delimiter,
+            is_heuristics=self.__is_heuristics,
+            is_base_heuristics=self.__is_base_heuristics,
+            is_crop=self.__is_crop,
+            is_promisc=self.__is_promisc
+        )
         if not self.__tree:
-            raise Exception('IOS. Impossible to build a tree.')
+            raise Exception(f'{self.nos_type}. Impossible to build a tree.')
         self.__store.append(self)
         self.__cursor: Root | Node = self.__tree
         self.__virtual_cursor: Root | Node = self.__tree
         self.__virtual_h_cursor: Root | Node = self.__tree
-        self.spaces = 1
         if 'end' not in self.keywords['top']:
             self.keywords['top'].append('end')
         if 'exit' not in self.keywords['up']:
@@ -97,10 +236,12 @@ class IOSContext(Context):
             config=self.content,
             delimiter=self.delimiter,
             is_heuristics=self.__is_heuristics,
+            is_base_heuristics=self.__is_base_heuristics,
             is_crop=self.__is_crop,
             is_promisc=self.__is_promisc
         )
         self.__cursor = self.__tree
+        self.logger.debug(f'The tree was rebuilt. {self.nos_type}.')
 
     def __get_node_content(self, node: Root | Node) -> Generator[str, None, None]:
         return lazy_provide_config(self.content, node, self.spaces)
@@ -130,32 +271,38 @@ class IOSContext(Context):
             else:
                 yield from self.__inspect_children(child, parent_path, is_pair=is_pair)
 
-    def __update_virtual_cursor(self, parts: list[str], *, is_heuristics: bool = False) -> Generator[str, None, None]:
-        target: list[Node] = []
-        if is_heuristics:
-            target = self.__virtual_h_cursor.heuristics
-        else:
-            target = self.__virtual_cursor.children
+    def __update_virtual_cursor(self, parts: deque[str], *, is_heuristics: bool = False) -> Generator[str, None, None]:
+        # is_heuristics here is a marker that sports which cursor and its nodes to use
+        target = self.__virtual_h_cursor.heuristics if is_heuristics else self.__virtual_cursor.children
+        head = parts.popleft()
+        if head == '|':
+            yield from map(lambda x: x.name, target)
         for child in target:
             # We ignore `is_accessible` flag because the virtual cursors are actually virtual.
-            if child.name == parts[0]:
+            if child.name == head:
                 if is_heuristics:
                     self.__virtual_h_cursor = child
                 else:
                     self.__virtual_cursor = child
-                if parts[1:]:
-                    yield from self.__update_virtual_cursor(parts[1:], is_heuristics=is_heuristics)
+                if parts:
+                    yield from self.__update_virtual_cursor(parts, is_heuristics=is_heuristics)
                 else:
-                    yield child.name
-                break
-        else:
-            # a child wasn't found
-            # so we try to get all matches instead
-            yield from filter(lambda x: re.search(rf'^{parts[0]}', x, re.I), map(lambda x: x.name, target))
+                    yield from filter(lambda x: x.lower().startswith(head), map(lambda x: x.name, target))
+                return
+        # a child wasn't found
+        # so we try to get all matches instead
+        yield from filter(lambda x: x.lower().startswith(head), map(lambda x: x.name, target))
 
     def free(self) -> None:
         self.__store.remove(self)
         super().free()
+
+    def apply_settings(self, settings: dict[str, str | int]) -> None:
+        self_name = self.__class__.__name__
+        if hasattr(self, f'_{self_name}__tree') and self.__tree:
+            self.__logger.debug('Trying to apply settings with a completed tree.')
+            return
+        super().apply_settings(settings)
 
     def update_virtual_cursor(self, value: str) -> Generator[str, None, None]:
         '''
@@ -164,6 +311,7 @@ class IOSContext(Context):
         '''
         if not value:
             return
+        value = value.lower()
         parts: list[str] = value.split()
         command: str = parts[0]  # command must be top, show, or go
         sub_command: str = ''
@@ -187,13 +335,14 @@ class IOSContext(Context):
             offset = 1
         else:
             return
+        data = deque(parts[offset:])
         if self.__is_heuristics and command not in self.keywords['go']:
             yield from chain(
-                self.__update_virtual_cursor(copy(parts[offset:]), is_heuristics=False),
-                self.__update_virtual_cursor(copy(parts[offset:]), is_heuristics=True)
+                self.__update_virtual_cursor(copy(data), is_heuristics=False),
+                self.__update_virtual_cursor(copy(data), is_heuristics=True)
             )
         else:
-            yield from self.__update_virtual_cursor(parts[offset:], is_heuristics=False)
+            yield from self.__update_virtual_cursor(data, is_heuristics=False)
 
     def get_virtual_from(self, value: str) -> str:
         '''
@@ -214,7 +363,23 @@ class IOSContext(Context):
             parts = parts[1:]
         else:
             return ''
-        return parts[-1].strip()
+        input = ' '.join(parts)
+        current_path = self.__cursor.path.replace(self.delimiter, ' ')
+        virtual_path = self.__virtual_cursor.path.replace(self.delimiter, ' ')
+        hvirtual_path = self.__virtual_h_cursor.path.replace(self.delimiter, ' ')
+        if current_path:
+            # shorten the virtual paths
+            virtual_path = virtual_path.replace(current_path, '', 1)
+            hvirtual_path = hvirtual_path.replace(current_path, '', 1)
+        virtual_path = virtual_path.strip().lower()
+        hvirtual_path = hvirtual_path.strip().lower()
+        # here we need to find out which the virtual path have more in common with the input
+        first = find_common([virtual_path, input])
+        second = find_common([hvirtual_path, input])
+        if len(first) == len(second) or len(first) > len(second):
+            return input.replace(first, '', 1)
+        else:
+            return input.replace(second, '', 1)
 
     def mod_stubs(self, jump_node: Optional[Node] = None) -> Generator[str | FabricException, None, None]:
         node = self.__cursor if not jump_node else jump_node
@@ -273,9 +438,9 @@ class IOSContext(Context):
         context_name = args[0]
         if self.name == context_name:
             yield FabricException('You can\'t compare the same context.')
-        remote_context: IOSContext = None
+        remote_context: Context = None
         for elem in self.__store:
-            if elem.name == context_name:
+            if elem.name == context_name and type(elem) is type(self):
                 remote_context = elem
                 break
         else:
@@ -300,6 +465,40 @@ class IOSContext(Context):
             list(lazy_provide_config(self.content, target, self.spaces)),
             list(lazy_provide_config(remote_context.content, peer, remote_context.spaces))
         )
+
+    def mod_contains(
+        self,
+        args: list[str],
+        jump_node: Optional[Node] = []
+    ) -> Generator[str | FabricException, None, None]:
+
+        def replace_path(source: str, head: str) -> str:
+            return source.replace(head, '').replace(self.delimiter, ' ').strip()
+
+        def lookup_child(
+            node: Node,
+            path: str = ''
+        ) -> Generator[str, None, None]:
+            for child in node.children:
+                yield from lookup_child(child, path)
+            if not node.is_accessible:
+                return
+            if re.search(args[0], node.path.replace(self.delimiter, ' ')):
+                yield replace_path(node.path, path)
+            for stub in filter(lambda x: re.search(args[0], x), node.stubs):
+                yield f'{replace_path(node.path, path)}: "{stub}"' if node.path else f'"{stub}"'
+
+        if len(args) != 1:
+            yield FabricException('There must be one argument for "contains".')
+        node = self.__cursor if not jump_node else jump_node
+        if not node.children:
+            yield FabricException('No sections at this level.')
+        try:
+            re.compile(args[0])
+        except re.error:
+            yield FabricException(f'Incorrect regular expression for "contains": {args[0]}.')
+        yield '\n'
+        yield from lookup_child(node, node.path)
 
     def __process_fabric(
         self,
@@ -337,6 +536,9 @@ class IOSContext(Context):
                 elif command in self.keywords['diff']:
                     __check_leading_mod(command, number, len(elem[1:]), 1)
                     data = self.mod_diff(elem[1:], jump_node)
+                elif command in self.keywords['contains']:
+                    __check_leading_mod(command, number, len(elem[1:]), 1)
+                    data = self.mod_contains(elem[1:], jump_node)
                 else:
                     raise FabricException(f'Unknown modificator "{command}".')
             head = next(data)
@@ -436,41 +638,3 @@ class IOSContext(Context):
                 steps -= 1
         self.__cursor = current
         return AlertResponse.success()
-
-    def command_set(self, args: deque[str]) -> Response:
-        if not args:
-            return AlertResponse.error('Not enough arguments for "set".')
-        command = args.popleft()
-        if command in ('heuristics', 'crop', 'promisc',):
-            if len(args) != 1:
-                return AlertResponse.error(f'There must be one argument for "set {command}".')
-            value = args.pop()
-            value = value.lower()
-            if value not in ('on', 'off', '0', '1', 0, 1):
-                return AlertResponse.error(f'Unknown argument for "set {command}": {value}. Use: 0, 1, off, on.')
-            if command == 'heuristics':
-                if value in ('on', '1', 1):
-                    if self.__is_heuristics:
-                        return AlertResponse.error('The heuristics mode is already active.')
-                    self.__is_heuristics = True
-                    analyze_heuristics(self.__tree, self.delimiter, self.__is_crop)
-                else:
-                    self.__is_heuristics = False
-            elif command == 'crop':
-                if not self.__is_heuristics:
-                    return AlertResponse.error('The heuristics mode must be enabled first.')
-                if value in ('on', '1', 1):
-                    self.__is_crop = True
-                else:
-                    self.__is_crop = False
-                self.__rebuild_tree()
-            elif command == 'promisc':
-                if value in ('on', '1', 1):
-                    self.__is_promisc = True
-                else:
-                    self.__is_promisc = False
-                self.__rebuild_tree()
-            return AlertResponse.success(f'The "set {command}" was successfully modified.')
-        else:
-            args.appendleft(command)
-            return super().command_set(args)

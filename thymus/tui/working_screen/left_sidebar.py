@@ -9,6 +9,11 @@ from textual.widgets import (
     Label,
 )
 
+from ...misc import (
+    find_common,
+    rreplace,
+)
+
 import sys
 
 
@@ -22,7 +27,7 @@ if TYPE_CHECKING:
     from ...tuier import TThymus
 
 
-class LeftSidebar(ListView):
+class LeftSidebar(ListView, can_focus=False):
     app: TThymus
     screen: WorkingScreen
 
@@ -49,6 +54,34 @@ class LeftSidebar(ListView):
             self.__update(self.screen.context.update_virtual_cursor(value))
         else:
             self.clear()
+
+    def get_replacement(self, value: str) -> str:
+        if self.highlighted_child and self.highlighted_child.name == 'filler':
+            return value
+        value = value.lower()
+        if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
+            if len(self.children) > 1:
+                try:
+                    elems = [x.name for x in self.children]
+                    if elems[-1] == 'filler':
+                        elems = elems[:-1]
+                    common = find_common(elems)
+                    extra_chars = self.screen.context.get_virtual_from(value)
+                    if not extra_chars or not common:
+                        return value
+                    return rreplace(value, extra_chars, common)
+                except Exception as err:
+                    self.app.logger.debug(f'Error during enhanced Tab: {err}.')
+                    return value
+            elif len(self.children):
+                if match := self.screen.context.get_virtual_from(value):
+                    return rreplace(value, match, self.highlighted_child.name) if self.highlighted_child else value
+            else:
+                return value
+        else:
+            if match := self.screen.context.get_virtual_from(value):
+                return rreplace(value, match, self.highlighted_child.name) if self.highlighted_child else value
+        return value
 
     @work(exclusive=True, exit_on_error=False)
     async def __update(self, data: Iterable[str]) -> None:

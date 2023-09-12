@@ -5,6 +5,46 @@
 
 /* OPEN DIALOG DATA */
 
+.od-disabled {
+    display: none;
+}
+
+.od-labels {
+    width: 15;
+}
+
+.od-hor-con {
+    height: auto;
+}
+
+.od-inputs {
+    width: 35;
+}
+
+.od-inputs.-valid {
+    border: tall $success 60%;
+}
+.od-inputs.-valid:focus {
+    border: tall $success;
+}
+
+#od-right-middle-block {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#od-tabs {
+    dock: top;
+}
+
+#od-hor-con-butns {
+    margin-top: 1;
+}
+
+#od-cap {
+    margin-bottom: 1;
+}
+
 #od-left-block {
     dock: left;
     width: 30;
@@ -36,6 +76,11 @@
 
 #od-refresh-button {
     margin-left: 1;
+}
+
+#od-nt-loading {
+    margin-left: 1;
+    content-align: left middle;
 }
 
 /* QUIT MODAL DATA */

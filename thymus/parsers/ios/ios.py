@@ -157,7 +157,7 @@ def recursive_node_lookup(
             recursive_node_lookup(child, is_child, callback, **kwargs)
         callback(child, **kwargs)
 
-def lazy_provide_config(config: list[str], node: Root | Node, spaces: int) -> Generator[str, None, None]:
+def lazy_provide_config(config: list[str], node: Root | Node, alignment: int) -> Generator[str, None, None]:
     if not node.is_accessible:
         return
     try:
@@ -167,13 +167,38 @@ def lazy_provide_config(config: list[str], node: Root | Node, spaces: int) -> Ge
             begin = node.begin - 1
         if config[end - 1].strip() != '!':
             end -= 1
-        for line in config[begin:end]:
-            if line[-1] == '\n':
-                line = line[:-1]
-            current_spaces = get_spaces(line)
-            block = ' ' * current_spaces * spaces
-            line = line[current_spaces:]
-            yield f'{block}{line}'
+        depth: int = 0
+        prev_spaces: int = 0
+        is_started: bool = False
+        for pos in range(begin, end):
+            if not config[pos]:
+                continue
+            elif config[pos] == '\n':
+                yield config[pos]
+                continue
+            spaces = get_spaces(config[pos])
+            if not is_started:
+                if spaces > 0:
+                    yield config[pos].strip()
+                elif spaces == 0:
+                    is_started = True
+                    yield config[pos].strip()
+            else:
+                if spaces > prev_spaces:
+                    depth += 1
+                    prev_spaces = spaces
+                    yield f'{" " * alignment * depth}{config[pos].strip()}'
+                elif spaces == prev_spaces:
+                    yield f'{" " * alignment * depth}{config[pos].strip()}'
+                else:
+                    if spaces > 0:
+                        depth -= 1
+                        yield f'{" " * alignment * depth}{config[pos].strip()}'
+                        prev_spaces = spaces
+                    else:
+                        depth = 0
+                        prev_spaces = 0
+                        yield config[pos].strip()
     except IndexError:
         return
 
@@ -256,9 +281,10 @@ def analyze_sections(root: Root, delimiter: str, cache: list[tuple[int, str]]) -
 
 def construct_tree(
     config: list[str],
-    delimiter: str = '^',
     *,
+    delimiter: str = '^',
     is_heuristics: bool = False,
+    is_base_heuristics: bool = False,
     is_crop: bool = False,
     is_promisc: bool = False
 ) -> Optional[Root]:
@@ -277,7 +303,6 @@ def construct_tree(
     prev_line: str = ''
     step: int = 0  # step tells how deep the next section is
     final: int = 0
-    # LOOKAHEAD ALGO
     if not is_promisc:
         for index in range(len(config) - 1, 0, -1):
             if config[index] == '\n':
@@ -286,13 +311,13 @@ def construct_tree(
                 break
         else:
             return
+    config.append('!\n')  # for the cases when the last section is not properly closed
     s_cache: list[tuple[int, str]] = []
+    # LOOKAHEAD ALGO
     for number, line in enumerate(config):
         final = number
-        line = line[:-1]
+        line = line.rstrip()
         if not line:
-            continue
-        if re.search(r'^\!\s', line):
             continue
         if not prev_line:
             prev_line = line
@@ -305,6 +330,8 @@ def construct_tree(
             current.begin = number
             current.depth = spaces - prev_spaces
         elif spaces < prev_spaces:
+            if not step:
+                continue
             stripped = prev_line.strip()
             if not stripped.startswith('!') and stripped not in STOP_LIST:
                 current.stubs.append(stripped)
@@ -321,7 +348,7 @@ def construct_tree(
             stripped = prev_line.strip()
             if not stripped.startswith('!') and stripped not in STOP_LIST:
                 current.stubs.append(stripped)
-                if current.name == 'root' and re.search(SA_REGEXP, stripped):
+                if current.name == 'root' and is_base_heuristics and re.search(SA_REGEXP, stripped):
                     s_cache.append((number, stripped))
                     current.stubs = current.stubs[:-1]
             if current.name == 'root' and stripped.startswith('version '):
@@ -333,5 +360,6 @@ def construct_tree(
         return
     if is_heuristics:
         analyze_heuristics(current, delimiter, is_crop)
-    analyze_sections(current, delimiter, s_cache)
+    if is_base_heuristics:
+        analyze_sections(current, delimiter, s_cache)
     return current
