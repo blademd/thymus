@@ -1,10 +1,28 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import sys
+import re
+
+from typing import TYPE_CHECKING, Optional
 from collections import deque
 from itertools import chain
 from difflib import Differ
 from copy import copy
+
+if sys.version_info.major == 3 and sys.version_info.minor >= 9:
+    from collections.abc import Generator, Iterable, Iterator
+else:
+    from typing import Generator, Iterable, Iterator
+
+from thymus_ast.ios import (  # type: ignore
+    Root,
+    Node,
+    construct_tree,
+    analyze_heuristics,
+    lazy_provide_config,
+    search_node,
+    search_h_node,
+)
 
 from .context import (
     Context,
@@ -12,36 +30,16 @@ from .context import (
     UP_LIMIT,
 )
 from ..responses import (
+    Response,
     ContextResponse,
     AlertResponse,
-)
-from ..parsers.ios import (
-    construct_tree,
-    analyze_heuristics,
-    lazy_provide_config,
-    search_node,
-    search_h_node,
 )
 from ..lexers import IOSLexer
 from ..misc import find_common
 
-import sys
-import re
-
 
 if TYPE_CHECKING:
-    from typing import Optional
-    if sys.version_info.major == 3 and sys.version_info.minor >= 9:
-        from collections.abc import Generator, Iterable
-    else:
-        from typing import Generator, Iterable
     from logging import Logger
-
-    from ..responses import Response
-    from ..parsers.ios import (
-        Root,
-        Node,
-    )
 
 
 class IOSContext(Context):
@@ -56,7 +54,7 @@ class IOSContext(Context):
         '__is_promisc',
     )
     __store: list[IOSContext] = []
-    lexer: IOSLexer = IOSLexer
+    lexer: type[IOSLexer] = IOSLexer
 
     @property
     def prompt(self) -> str:
@@ -76,18 +74,6 @@ class IOSContext(Context):
     @property
     def heuristics(self) -> bool:
         return self.__is_heuristics
-
-    @property
-    def base_heuristics(self) -> bool:
-        return self.__is_base_heuristics
-
-    @property
-    def crop(self) -> bool:
-        return self.__is_crop
-
-    @property
-    def promisc(self) -> bool:
-        return self.__is_promisc
 
     @heuristics.setter
     def heuristics(self, value: str | int | bool) -> None:
@@ -119,6 +105,10 @@ class IOSContext(Context):
         else:
             raise TypeError(f'Incorrect type for heuristics: {type(value)}.')
 
+    @property
+    def base_heuristics(self) -> bool:
+        return self.__is_base_heuristics
+
     @base_heuristics.setter
     def base_heuristics(self, value: str | int | bool) -> None:
         self_name = self.__class__.__name__
@@ -147,6 +137,10 @@ class IOSContext(Context):
         if hasattr(self, f'_{self_name}__tree') and self.__tree:
             self.__rebuild_tree()
 
+    @property
+    def crop(self) -> bool:
+        return self.__is_crop
+
     @crop.setter
     def crop(self, value: str | int | bool) -> None:
         self_name = self.__class__.__name__
@@ -172,6 +166,10 @@ class IOSContext(Context):
             raise TypeError(f'Incorrect type for crop: {type(value)}.')
         if hasattr(self, f'_{self_name}__tree') and self.__tree and self.__is_heuristics:
             self.__rebuild_tree()
+
+    @property
+    def promisc(self) -> bool:
+        return self.__is_promisc
 
     @promisc.setter
     def promisc(self, value: str | int | bool) -> None:
@@ -244,9 +242,9 @@ class IOSContext(Context):
         self.logger.debug(f'The tree was rebuilt. {self.nos_type}.')
 
     def __get_node_content(self, node: Root | Node) -> Generator[str, None, None]:
-        return lazy_provide_config(self.content, node, self.spaces)
+        return lazy_provide_config(self.content, node, alignment=self.spaces, is_started=True)
 
-    def __prepand_nop(self, data: Iterable[str]) -> Generator[str, None, None]:
+    def __prepand_nop(self, data: Iterable[str]) -> Generator[str | Exception, None, None]:
         '''
         This method simply adds a blank line to a head of the stream. If the stream is not lazy, it also converts it.
         The blank line is then eaten by __process_fabric method or __mod methods. Final stream does not contain it.
@@ -254,22 +252,20 @@ class IOSContext(Context):
         yield '\n'
         yield from data
 
-    def __inspect_children(
-        self,
-        node: Root | Node,
-        parent_path: str,
-        *,
-        is_pair: bool = False
-    ) -> Generator[str | tuple[str, Node], None, None]:
+    def __inspect_children_pair(self, node: Root | Node, parent_path: str) -> Generator[tuple[str, Node], None, None]:
         for child in node.children:
             if child.is_accessible:
                 path = child.path.replace(parent_path, '').replace(self.delimiter, ' ').strip()
-                if is_pair:
-                    yield path, child
-                else:
-                    yield path
+                yield path, child
             else:
-                yield from self.__inspect_children(child, parent_path, is_pair=is_pair)
+                yield from self.__inspect_children_pair(child, parent_path)
+
+    def __inspect_children_path(self, node: Root | Node, parent_path: str) -> Generator[str, None, None]:
+        for child in node.children:
+            if child.is_accessible:
+                yield child.path.replace(parent_path, '').replace(self.delimiter, ' ').strip()
+            else:
+                yield from self.__inspect_children_path(child, parent_path)
 
     def __update_virtual_cursor(self, parts: deque[str], *, is_heuristics: bool = False) -> Generator[str, None, None]:
         # is_heuristics here is a marker that sports which cursor and its nodes to use
@@ -327,6 +323,20 @@ class IOSContext(Context):
                 command = sub_command
             else:
                 return
+        elif command in self.keywords['up']:
+            if len(parts) < 3:
+                return
+            sub_command = parts[1]  # sub_command must be show or go
+            if sub_command in self.keywords['show'] or sub_command in self.keywords['go']:
+                temp = self.__cursor
+                self.command_up(deque(), [])
+                self.__virtual_cursor = self.__cursor
+                self.__virtual_h_cursor = self.__cursor
+                self.__cursor = temp
+                offset = 2
+                command = sub_command
+            else:
+                return
         elif command in self.keywords['show'] or command in self.keywords['go']:
             if len(parts) < 2:
                 return
@@ -352,10 +362,12 @@ class IOSContext(Context):
         if not value:
             return ''
         parts: list[str] = value.split()
+        first = ''
         command = parts[0]
-        if command in self.keywords['top']:
+        if command in self.keywords['top'] or command in self.keywords['up']:
             if len(parts) < 3:
                 return ''
+            first = command
             parts = parts[2:]
         elif command in self.keywords['show'] or command in self.keywords['go']:
             if len(parts) < 2:
@@ -367,13 +379,18 @@ class IOSContext(Context):
         current_path = self.__cursor.path.replace(self.delimiter, ' ')
         virtual_path = self.__virtual_cursor.path.replace(self.delimiter, ' ')
         hvirtual_path = self.__virtual_h_cursor.path.replace(self.delimiter, ' ')
+        temp = self.__cursor
+        if first == 'up':
+            self.command_up(deque(), [])
+            current_path = self.__cursor.path.replace(self.delimiter, ' ')
         if current_path:
             # shorten the virtual paths
             virtual_path = virtual_path.replace(current_path, '', 1)
             hvirtual_path = hvirtual_path.replace(current_path, '', 1)
+        self.__cursor = temp
         virtual_path = virtual_path.strip().lower()
         hvirtual_path = hvirtual_path.strip().lower()
-        # here we need to find out which the virtual path have more in common with the input
+        # here we need to find out which virtual path has more in common with the input
         first = find_common([virtual_path, input])
         second = find_common([hvirtual_path, input])
         if len(first) == len(second) or len(first) > len(second):
@@ -381,26 +398,26 @@ class IOSContext(Context):
         else:
             return input.replace(second, '', 1)
 
-    def mod_stubs(self, jump_node: Optional[Node] = None) -> Generator[str | FabricException, None, None]:
+    def mod_stubs(self, jump_node: Optional[Node] = None) -> Generator[str | Exception, None, None]:
         node = self.__cursor if not jump_node else jump_node
         if not node.stubs:
             yield FabricException('No stubs at this level.')
         yield '\n'  # nop
         yield from node.stubs
 
-    def mod_sections(self, jump_node: Optional[Node] = None) -> Generator[str | FabricException, None, None]:
+    def mod_sections(self, jump_node: Optional[Node] = None) -> Generator[str | Exception, None, None]:
         node = self.__cursor if not jump_node else jump_node
         if not node.children:
             yield FabricException('No sections at this level.')
         yield '\n'
-        yield from self.__inspect_children(node, node.path)
+        yield from self.__inspect_children_path(node, node.path)
 
     def mod_wildcard(
         self,
-        data: Iterable[str],
+        data: Iterator[str] | Generator[str | Exception, None, None],
         args: list[str],
         jump_node: Optional[Node] = None
-    ) -> Generator[str | FabricException, None, None]:
+    ) -> Generator[str | Exception, None, None]:
         if not data or len(args) != 1:
             yield FabricException('Incorrect arguments for "wildcard".')
         try:
@@ -417,18 +434,18 @@ class IOSContext(Context):
                     if not node.children:
                         yield FabricException('No sections at this level.')
                     yield '\n'
-                    for path, child in self.__inspect_children(node, node.path, is_pair=True):
+                    for path, child in self.__inspect_children_pair(node, node.path):
                         self.logger.debug(f'{path} {child.name}')
                         if re.search(regexp, path):
                             yield from self.__get_node_content(child)
             except StopIteration:
-                yield FabricException
+                yield FabricException()
 
     def mod_diff(
         self,
         args: list[str],
         jump_node: Optional[Node] = None
-    ) -> Generator[str | FabricException, None, None]:
+    ) -> Generator[str | Exception, None, None]:
         if len(args) != 1:
             yield FabricException('There must be one argument for "diff".')
         if not self.name:
@@ -438,13 +455,14 @@ class IOSContext(Context):
         context_name = args[0]
         if self.name == context_name:
             yield FabricException('You can\'t compare the same context.')
-        remote_context: Context = None
+        remote_context: Optional[Context] = None
         for elem in self.__store:
             if elem.name == context_name and type(elem) is type(self):
                 remote_context = elem
                 break
         else:
             yield FabricException('Remote context has not been found.')
+        assert remote_context is not None  # mypy's satisfier
         target: Root | Node = None
         peer: Root | Node = None
         if jump_node:
@@ -470,7 +488,7 @@ class IOSContext(Context):
         self,
         args: list[str],
         jump_node: Optional[Node] = []
-    ) -> Generator[str | FabricException, None, None]:
+    ) -> Generator[str | Exception, None, None]:
 
         def replace_path(source: str, head: str) -> str:
             return source.replace(head, '').replace(self.delimiter, ' ').strip()
@@ -513,38 +531,38 @@ class IOSContext(Context):
                 raise FabricException(f'Incorrect position of "{name}".')
             if args_count != args_limit:
                 raise FabricException(f'Incorrect number of arguments for "{name}". Must be {args_limit}.')
-        data = self.__prepand_nop(data)
+        recol_data = self.__prepand_nop(data)
         try:
             for number, elem in enumerate(mods):
                 command = elem[0]
                 if command in self.keywords['filter']:
-                    data = self.mod_filter(data, elem[1:])
+                    recol_data = self.mod_filter(recol_data, elem[1:])
                 elif command in self.keywords['stubs']:
                     __check_leading_mod(command, number, len(elem[1:]))
-                    data = self.mod_stubs(jump_node)
+                    recol_data = self.mod_stubs(jump_node)
                 elif command in self.keywords['sections']:
                     __check_leading_mod(command, number, len(elem[1:]))
-                    data = self.mod_sections(jump_node)
+                    recol_data = self.mod_sections(jump_node)
                 elif command in self.keywords['save']:
-                    data = self.mod_save(data, elem[1:])
+                    recol_data = self.mod_save(recol_data, elem[1:])
                     break
                 elif command in self.keywords['count']:
-                    data = self.mod_count(data, elem[1:])
+                    recol_data = self.mod_count(recol_data, elem[1:])
                     break
                 elif command in self.keywords['wildcard']:
-                    data = self.mod_wildcard(data, elem[1:], jump_node)
+                    recol_data = self.mod_wildcard(recol_data, elem[1:], jump_node)
                 elif command in self.keywords['diff']:
                     __check_leading_mod(command, number, len(elem[1:]), 1)
-                    data = self.mod_diff(elem[1:], jump_node)
+                    recol_data = self.mod_diff(elem[1:], jump_node)
                 elif command in self.keywords['contains']:
                     __check_leading_mod(command, number, len(elem[1:]), 1)
-                    data = self.mod_contains(elem[1:], jump_node)
+                    recol_data = self.mod_contains(elem[1:], jump_node)
                 else:
                     raise FabricException(f'Unknown modificator "{command}".')
-            head = next(data)
+            head = next(recol_data)
             if isinstance(head, Exception):
                 raise head
-            return ContextResponse.success(data)
+            return ContextResponse.success(recol_data)
         except (AttributeError, IndexError) as err:
             return AlertResponse.error(f'Unknown error from the fabric #001: {err}')
         except FabricException as err:
@@ -552,7 +570,7 @@ class IOSContext(Context):
         except StopIteration:
             return AlertResponse.error('Unknown error from the fabric #002.')
 
-    def command_show(self, args: deque[str] = [], mods: list[list[str]] = []) -> Response:
+    def command_show(self, args: deque[str], mods: list[list[str]]) -> Response:
         if args:
             first_arg = args[0]
             if first_arg in self.keywords['version']:
@@ -587,7 +605,7 @@ class IOSContext(Context):
             return AlertResponse.success()
         return AlertResponse.error('This path is not correct.')
 
-    def command_top(self, args: deque[str] = [], mods: list[list[str]] = []) -> Response:
+    def command_top(self, args: deque[str], mods: list[list[str]]) -> Response:
         if args:
             sub_command = args.popleft()
             temp = self.__cursor
@@ -609,21 +627,21 @@ class IOSContext(Context):
             self.__cursor = self.__tree
             return AlertResponse.success()
 
-    def command_up(self, args: deque[str]) -> Response:
+    def command_up(self, args: deque[str], mods: list[list[str]]) -> Response:
         steps: int = 1
         if args:
-            if len(args) != 1:
-                return AlertResponse.error('There must be one argument for "up".')
             arg = args.popleft()
             if arg in self.keywords['show']:
                 if self.__cursor.name == 'root':
                     return AlertResponse.error('You can\'t do a negative lookahead from the top.')
                 temp = self.__cursor
-                self.__cursor = self.__cursor.parent
-                result = self.command_show()
+                self.command_up(deque(), [])
+                result = self.command_show(args, mods)
                 self.__cursor = temp
                 return result
             elif arg.isdigit():
+                if len(args) != 1:
+                    return AlertResponse.error('There must be one argument for "up".')
                 steps = min(int(arg), UP_LIMIT)
             else:
                 return AlertResponse.error(f'Incorrect argument for "up": {arg}.')

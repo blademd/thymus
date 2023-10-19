@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from itertools import islice
 
 from textual.screen import Screen
@@ -18,6 +18,7 @@ from rich.text import Text
 from rich.syntax import Syntax
 
 from ...contexts import (
+    Context,
     JunOSContext,
     IOSContext,
     EOSContext,
@@ -28,22 +29,18 @@ from .extended_input import ExtendedInput
 from .status_bar import StatusBar
 from .path_bar import PathBar
 from .left_sidebar import LeftSidebar
-from ..modals.quit_modal import QuitScreen
-from ...responses import RichResponse
+from ..modals import QuitScreen
+from ...responses import Response, RichResponse
 from ... import CONTEXT_HELP
 
 
 if TYPE_CHECKING:
-    from typing import Optional
-
     from textual.app import ComposeResult
 
     from ...tuier import TThymus
-    from ...contexts import Context
-    from ...responses import Response
 
 
-PLATFORMS: dict[str, Context] = {
+PLATFORMS: dict[str, type[Context]] = {
     'junos': JunOSContext,
     'ios': IOSContext,
     'eos': EOSContext,
@@ -62,7 +59,7 @@ class WorkingScreen(Screen):
     filename: var[str] = var('')
     nos_type: var[str] = var('')
     encoding: var[str] = var('')
-    context: var[Context] = var(None)
+    context: var[Optional[Context]] = var(None)
     draw_data: var[Optional[Response]] = var(None)
 
     def __init__(
@@ -75,33 +72,36 @@ class WorkingScreen(Screen):
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
-        if nos_type not in PLATFORMS:
-            err_msg = f'Unsupported platform: {nos_type}.'
-            self.app.logger.error(err_msg)
-            raise Exception(err_msg, 'logged')
         self.nos_type = nos_type
         self.encoding = encoding
         if filename:
             self.filename = filename
             try:
                 content = open(filename, encoding=encoding, errors='replace').readlines()
+                if not content:
+                    err_msg = f'File "{self.filename}" is empty. Platform: {nos_type}.'
+                    self.app.logger.error(err_msg)
+                    raise Exception(err_msg, 'logged')
             except FileNotFoundError:
                 err_msg = f'Cannot open the file "{filename}", it does not exist. Platform: {nos_type}.'
                 self.app.logger.error(err_msg)
                 raise Exception(err_msg, 'logged')
-        else:
+        elif self.screen.name:
             self.filename = self.screen.name
-        if not content:
-            err_msg = f'File "{self.filename}" is empty. Platform: {nos_type}.'
+        else:
+            self.filename = 'unset'
+        if context := PLATFORMS.get(nos_type, None):
+            self.context = context(
+                name='',
+                content=content,
+                encoding=encoding,
+                settings=getattr(self.app.settings, nos_type),
+                logger=self.app.logger
+            )
+        if not self.context:
+            err_msg = f'Failed to load context for "{self.filename}".'
             self.app.logger.error(err_msg)
             raise Exception(err_msg, 'logged')
-        self.context = PLATFORMS[nos_type](
-            name='',
-            content=content,
-            encoding=encoding,
-            settings=getattr(self.app.settings, nos_type),
-            logger=self.app.logger
-        )
         self.app.logger.info(f'File "{self.filename}" for the platform "{nos_type}" was opened.')
 
     def compose(self) -> ComposeResult:
@@ -169,8 +169,6 @@ class WorkingScreen(Screen):
         self.__draw(multiplier)
 
     def print_help(self) -> None:
-        if not self.context:
-            return
         try:
             body: list[str] = []
             body.append(CONTEXT_HELP['header'].format(NOS=self.nos_type.upper()))
@@ -182,10 +180,10 @@ class WorkingScreen(Screen):
                 if k in self.context.keywords and self.context.keywords[k]:
                     body.append(v.format(CMDS=', '.join(self.context.keywords[k])))
             body.append(CONTEXT_HELP['footer'])
-            r = RichResponse(body)
+            r = RichResponse.success(body)
             self.draw(r)
         except Exception as err:
-            self.app.logger.debug(f'Error has occurred with print_help: {err}.')
+            self.app.logger.error(f'Error has occurred with print_help: {err}.')
 
     def action_request_quit(self) -> None:
         self.app.logger.debug(f'Exit was requested: {self.filename}.')

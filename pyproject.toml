@@ -1,14 +1,15 @@
 [tool.poetry]
 name = "thymus"
-version = "0.1.3"
+version = "0.1.5"
 description = "A browser for network configuration files"
 authors = ["Igor Malyushkin <gmalyushkin@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8.1"
-textual = "0.36.0"
+textual = "0.40.0"
 netmiko = "^4.2.0"
+thymus-ast = "^0.1.2"
 
 
 [tool.poetry.group.dev.dependencies]

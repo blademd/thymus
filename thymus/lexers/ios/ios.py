@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pygments.lexer import RegexLexer
-from pygments.token import (
+from pygments.lexer import RegexLexer  # type: ignore
+from pygments.token import (  # type: ignore
     Text,
     Whitespace,
     Comment,

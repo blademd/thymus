@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from netmiko import ConnectHandler
+from netmiko import ConnectHandler  # type: ignore
 
 
 P_MAP = {

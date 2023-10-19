@@ -3,16 +3,14 @@ __all__ = (
     'IPV6_REGEXP',
     'CommonLexer',
     'SyslogLexer',
-    'JunosLexer',
-    'IOSLexer',
 )
 
 
-from .common import (
+from .regexps import (
     IPV4_REGEXP,
     IPV6_REGEXP,
-    CommonLexer,
-    SyslogLexer
 )
-from .junos import JunosLexer
-from .ios import IOSLexer
+from .common import (
+    CommonLexer,
+    SyslogLexer,
+)

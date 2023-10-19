@@ -1,15 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-import sys
-
-
-if TYPE_CHECKING:
-    if sys.version_info.major == 3 and sys.version_info.minor >= 9:
-        from collections.abc import Iterable
-    else:
-        from typing import Iterable
+from typing import Any
 
 
 class Response:
@@ -19,7 +10,7 @@ class Response:
     )
     rtype: str = 'system'
 
-    def __init__(self, status: str, value: str | Iterable[str]) -> None:
+    def __init__(self, status: str, value: Any) -> None:
         self.__status: str = status
         if type(value) is str:
             self.__value = iter([value])
@@ -37,15 +28,15 @@ class Response:
         return True if self.__status == 'success' else False
 
     @property
-    def value(self) -> Iterable[str]:
+    def value(self) -> Any:
         return self.__value
 
     @classmethod
-    def error(cls, value: str | Iterable[str]) -> Response:
+    def error(cls, value: Any) -> Response:
         return cls('error', value)
 
     @classmethod
-    def success(cls, value: str | Iterable[str] = '') -> Response:
+    def success(cls, value: Any = '') -> Response:
         return cls('success', value)
 
 class SettingsResponse(Response):
@@ -59,6 +50,3 @@ class ContextResponse(Response):
 
 class RichResponse(Response):
     rtype: str = 'rich'
-
-    def __init__(self, value: str | Iterable[str]) -> None:
-        super().__init__('success', value)

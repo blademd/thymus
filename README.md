@@ -33,10 +33,6 @@ Thymus supports:
 
 </details>
 
-## Requirements
-
-Python **3.8.1**. Please, see also the `requirements.txt`.
-
 ## Modes
 
 Thymus operates in two modes:

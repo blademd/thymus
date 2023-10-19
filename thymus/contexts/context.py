@@ -1,40 +1,41 @@
 from __future__ import annotations
 
-from functools import reduce
-from collections import deque
-from typing import TYPE_CHECKING
-from logging import Logger, getLogger
-
-from .. import SAVES_DIR
-from ..responses import AlertResponse
-from ..lexers import CommonLexer
-
 import shlex
 import re
 import sys
 import os
 
+from functools import reduce
+from collections import deque
+from typing import Any
+from logging import Logger, getLogger
+from abc import ABC, abstractmethod
 
-if TYPE_CHECKING:
-    if sys.version_info.major == 3 and sys.version_info.minor >= 9:
-        from collections.abc import Generator, Iterable
-    else:
-        from typing import Generator, Iterable
+from .. import SAVES_DIR
+from ..responses import Response, AlertResponse
+from ..lexers import CommonLexer
 
-    from ..responses import Response
+if sys.version_info.major == 3 and sys.version_info.minor >= 9:
+    from collections.abc import Generator, Iterator
+else:
+    from typing import Generator, Iterator
+
 
 UP_LIMIT = 8
+CMD_LOG_LIMIT = 30
 
 
-class Context:
+class Context(ABC):
     __slots__: tuple[str, ...] = (
         '__name',
         '__content',
         '__encoding',
         '__spaces',
         '__logger',
+        '__commands_log',
+        '__commands_index',
     )
-    __names_cache: list[tuple[Context, str]] = []
+    __names_cache: list[tuple[type[Context], str]] = []
     delimiter: str = '^'
     keywords: dict[str, list[str]] = {
         'go': ['go'],
@@ -54,53 +55,32 @@ class Context:
         'help': ['help'],
         'global': ['global'],
     }
-    lexer: CommonLexer = CommonLexer
+    lexer: type[CommonLexer] = CommonLexer
 
     @property
+    @abstractmethod
     def prompt(self) -> str:
-        return ''
+        raise NotImplementedError
 
     @property
     def name(self) -> str:
         return self.__name
 
-    @property
-    def encoding(self) -> str:
-        return self.__encoding
-
-    @property
-    def content(self) -> list[str]:
-        return self.__content
-
-    @property
-    def spaces(self) -> int:
-        return self.__spaces
-
-    @property
-    def nos_type(self) -> str:
-        return ''
-
-    @property
-    def logger(self) -> Logger:
-        return self.__logger
-
-    @spaces.setter
-    def spaces(self, value: int | str) -> None:
-        if type(value) is str and value.isdigit():
-            value = int(value)
-        if value not in (1, 2, 4):
-            raise ValueError('Spaces number can be 1, 2, 4.')
-        self.__spaces = value
-
     @name.setter
     def name(self, value: str) -> None:
-        if type(value) is not str or not re.match(r'^[0-9a-z]{4,16}$', value, re.I):
+        if type(value) is not str:
+            raise TypeError('Context name type must str.')
+        if not re.match(r'^[0-9a-z]{4,16}$', value, re.I):
             raise ValueError('Incorrect format of the name: use only these 0-9 or a-z.\nFrom 4 to 16 symbols.')
         if (type(self), value) not in self.__names_cache:
             self.__names_cache.append((type(self), value))
         else:
             raise ValueError(f'The name "{value}" is already set.')
         self.__name = value
+
+    @property
+    def encoding(self) -> str:
+        return self.__encoding
 
     @encoding.setter
     def encoding(self, value: str) -> None:
@@ -110,11 +90,46 @@ class Context:
         except LookupError:
             raise ValueError(f'"{value}" is not a correct encoding.')
 
+    @property
+    def content(self) -> list[str]:
+        return self.__content
+
+    @property
+    def spaces(self) -> int:
+        return self.__spaces
+
+    @spaces.setter
+    def spaces(self, value: int | str) -> None:
+        tval = 0
+        if type(value) is str and value.isdigit():
+            tval = int(value)
+        elif type(value) is int:
+            tval = value
+        else:
+            raise TypeError('Spaces type must be int or str (digital).')
+        if tval not in (1, 2, 4):
+            raise ValueError('Spaces number can be 1, 2, 4.')
+        self.__spaces = tval
+
+    @property
+    @abstractmethod
+    def nos_type(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def logger(self) -> Logger:
+        return self.__logger
+
     @logger.setter
     def logger(self, value: Logger) -> None:
         if type(value) is not Logger:
             raise ValueError('Incorrect type of a logger.')
         self.__logger = value
+
+    @property
+    @abstractmethod
+    def tree(self) -> Any:
+        raise NotImplementedError
 
     def __init__(
         self,
@@ -131,6 +146,8 @@ class Context:
         self.__logger = logger if logger else getLogger()
         self.__spaces = 2
         self.apply_settings(settings)
+        self.__commands_log: deque[str] = deque()
+        self.__commands_index = -1
 
     def free(self) -> None:
         if (type(self), self.__name) in self.__names_cache:
@@ -145,16 +162,48 @@ class Context:
             except Exception as err:
                 self.__logger.error(f'{err}')
 
-    def command_show(self, args: deque[str] = [], mods: list[list[str]] = []) -> Response:
+    def add_input_to_log(self, input: str) -> None:
+        if not input:
+            return
+        if input in self.__commands_log:
+            return
+        if len(self.__commands_log) == CMD_LOG_LIMIT:
+            self.__commands_log.popleft()
+        self.__commands_log.append(input)
+        self.__commands_index = len(self.__commands_log) - 1
+
+    def get_input_from_log(self, *, forward: bool = True) -> str:
+        result = ''
+        if not self.__commands_log:
+            return ''
+        if forward:
+            result = self.__commands_log[self.__commands_index]
+            if not self.__commands_index:
+                self.__commands_index = len(self.__commands_log) - 1
+            else:
+                self.__commands_index -= 1
+        else:
+            if self.__commands_index >= len(self.__commands_log) - 1:
+                self.__commands_index = 0
+            else:
+                self.__commands_index += 1
+            result = self.__commands_log[self.__commands_index]
+        return result
+
+    @abstractmethod
+    def command_show(self, args: deque[str], mods: list[list[str]]) -> Response:
         raise NotImplementedError
 
+    @abstractmethod
     def command_go(self, args: deque[str]) -> Response:
         raise NotImplementedError
 
+    @abstractmethod
     def command_top(self, args: deque[str], mods: list[list[str]]) -> Response:
         raise NotImplementedError
 
-    def command_up(self, args: deque[str]) -> Response:
+    @abstractmethod
+    def command_up(self, args: deque[str], mods: list[list[str]]) -> Response:
         raise NotImplementedError
 
     def command_set(self, args: deque[str]) -> Response:
@@ -174,7 +223,11 @@ class Context:
             return AlertResponse.error(f'Unknown argument for "set": {command}.')
         return AlertResponse.success(f'The "set {command}" was successfully modified.')
 
-    def mod_filter(self, data: Iterable[str], args: list[str]) -> Generator[str | FabricException, None, None]:
+    def mod_filter(
+        self,
+        data: Iterator[str] | Generator[str | Exception, None, None],
+        args: list[str]
+    ) -> Generator[str | Exception, None, None]:
         if not data or len(args) != 1:
             yield FabricException('Incorrect arguments for "filter".')
         try:
@@ -188,12 +241,19 @@ class Context:
                     yield head
                 else:
                     yield '\n'
-                    for line in filter(lambda x: regexp.search(x), data):
-                        yield line.strip()
+                    for elem in data:
+                        if type(elem) is str and regexp.search(elem):
+                            yield elem.strip()
+                        elif type(elem) is Exception:
+                            yield elem
             except StopIteration:
-                yield FabricException
+                yield FabricException()
 
-    def mod_save(self, data: Iterable[str], args: list[str]) -> Generator[str | FabricException, None, None]:
+    def mod_save(
+        self,
+        data: Iterator[str] | Generator[str | Exception, None, None],
+        args: list[str]
+    ) -> Generator[str | Exception, None, None]:
         # terminating modificator
         if len(args) == 1 and data:
             destination = args[0]
@@ -215,11 +275,15 @@ class Context:
             except FileNotFoundError:
                 yield FabricException(f'No such file or directory for "save": {place_to_save}.')
             except StopIteration:
-                yield FabricException
+                yield FabricException()
         else:
             yield FabricException('Incorrect arguments for "save".')
 
-    def mod_count(self, data: Iterable[str], args: list[str]) -> Generator[str | FabricException, None, None]:
+    def mod_count(
+        self,
+        data: Iterator[str] | Generator[str | Exception, None, None],
+        args: list[str]
+    ) -> Generator[str | Exception, None, None]:
         # terminating modificator
         if args:
             raise FabricException('Incorrect arguments for "count".')
@@ -234,12 +298,13 @@ class Context:
                 yield '\n'
                 yield f'Count: {counter}.'
         except StopIteration:
-            yield FabricException
+            yield FabricException()
 
     def on_enter(self, value: str) -> Response:
+        self.add_input_to_log(value)
         try:
-            args = reduce(
-                lambda acc, x: acc[:-1] + [acc[-1] + [x]] if x != '|' else acc + [[]],
+            args = reduce(  # type: ignore
+                lambda acc, x: acc[:-1] + [acc[-1] + [x]] if x != '|' else acc + [[]],  # type: ignore
                 shlex.split(value),
                 [[]]
             )
@@ -252,7 +317,7 @@ class Context:
             elif command in self.keywords['top']:
                 return self.command_top(head, args[1:])
             elif command in self.keywords['up']:
-                return self.command_up(head)
+                return self.command_up(head, args[1:])
             elif command in self.keywords['set']:
                 return self.command_set(head)
             else:
@@ -264,9 +329,11 @@ class Context:
         except NotImplementedError:
             return AlertResponse.error(f'The method for "{command}" is not implemented yet.')
 
+    @abstractmethod
     def update_virtual_cursor(self, value: str) -> Generator[str, None, None]:
         raise NotImplementedError
 
+    @abstractmethod
     def get_virtual_from(self, value: str) -> str:
         raise NotImplementedError
 

@@ -11,12 +11,22 @@ dict. The name of the function MUST be: __validate_platform_key.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import os
+import sys
+import json
+import logging
+
+from typing import Any
 from copy import copy
 from logging.handlers import RotatingFileHandler, BufferingHandler
 from logging.config import fileConfig
 
-from pygments.styles import get_all_styles
+if sys.version_info.major == 3 and sys.version_info.minor >= 9:
+    from collections.abc import Callable
+else:
+    from typing import Callable
+
+from pygments.styles import get_all_styles  # type: ignore
 
 from . import __version__ as app_ver
 from . import (
@@ -37,57 +47,45 @@ from . import (
     SAVES_DIR,
     SCREENS_SAVES_DIR,
 )
-from .responses import SettingsResponse
-
-import os
-import sys
-import json
-import logging
+from .responses import Response, SettingsResponse
 
 
-if TYPE_CHECKING:
-    from typing import Any
-    if sys.version_info.major == 3 and sys.version_info.minor >= 9:
-        from collections.abc import Callable
-    else:
-        from typing import Callable
-
-
-DEFAULT_GLOBALS = {
+DEFAULT_GLOBALS: dict[str, str | int] = {
     'theme': 'monokai',
     'night_mode': 'off',
     'filename_len': 256,
     'sidebar_limit': 64,
     'sidebar_strict_on_tab': 'on',
+    'open_dialog_platform': 'junos',
 }
-DEFAULT_JUNOS = {
+DEFAULT_JUNOS: dict[str, str | int] = {
     'spaces': 2,
 }
-DEFAULT_IOS = {
+DEFAULT_IOS: dict[str, str | int] = {
     'spaces': 1,
     'heuristics': 'off',
     'base_heuristics': 'on',
     'crop': 'off',
     'promisc': 'off',
 }
-DEFAULT_EOS = {
+DEFAULT_EOS: dict[str, str | int] = {
     'spaces': 2,
     'heuristics': 'off',
     'base_heuristics': 'on',
     'crop': 'off',
     'promisc': 'off',
 }
-DEFAULT_NXOS = {
+DEFAULT_NXOS: dict[str, str | int] = {
     'spaces': 2,
     'heuristics': 'off',
     'base_heuristics': 'on',
     'crop': 'off',
 }
-PLATFORMS = {
+PLATFORMS: dict[str, dict[str, str | int]] = {
     'junos': DEFAULT_JUNOS,
     'ios': DEFAULT_IOS,
-    'eos': DEFAULT_EOS,
     'nxos': DEFAULT_NXOS,
+    'eos': DEFAULT_EOS,
 }
 
 
@@ -128,8 +126,11 @@ class AppSettings:
     def logger(self) -> logging.Logger:
         return self.__logger
 
+    @property
+    def platforms(self) -> list[str]:
+        return list(self.__platforms.keys())
+
     def __init__(self) -> None:
-        self.__logger: logging.Logger = None
         self.__globals: dict[str, str | int] = {}
         self.__platforms: dict[str, dict[str, str | int]] = {}
         for platform in PLATFORMS:
@@ -256,7 +257,9 @@ class AppSettings:
         if not self.__is_dir:
             return
         self.__logger.debug(f'Saving a configuration into the file: {CONFIG_PATH}{CONFIG_NAME}.')
-        data = self.globals
+        data: dict[str, str | int | dict[str, str | int]] = {}
+        for k, v in self.globals.items():
+            data[k] = v
         for platform, platform_data in PLATFORMS.items():
             data.update(
                 {
@@ -301,7 +304,6 @@ class AppSettings:
                     errors.append(err_msg)
             except Exception:
                 # makes it default
-                err_msg: str = ''
                 if platform:
                     err_msg = f'Incorrect value for the global attribute "{key}": {value}.'
                     self.__platforms[platform][key] = store[key]
@@ -324,6 +326,9 @@ class AppSettings:
         elif key == 'sidebar_limit':
             value = int(value)
             if value <= 0 or value > N_VALUE_LIMIT:
+                raise Exception
+        elif key == 'open_dialog_platform':
+            if value not in PLATFORMS:
                 raise Exception
         elif key in ('sidebar_strict_on_tab', 'night_mode'):
             if value not in ('0', '1', 'on', 'off', 0, 1):
@@ -389,7 +394,7 @@ class AppSettings:
             return False
         return attr[key] in (1, '1', 'on')
 
-    def process_command(self, command: str) -> SettingsResponse:
+    def process_command(self, command: str) -> Response:
         if not command.startswith('global '):
             return SettingsResponse.error('Unknown global command.')
         parts = command.split()
@@ -403,21 +408,26 @@ class AppSettings:
             if arg == 'themes':
                 if len(parts) == 4:
                     return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
-                result: list[str] = []
-                result.append('* -- current theme')
+                themes_result = []
+                themes_result.append('* -- current theme')
                 for theme in self.styles:
-                    result.append(f'{theme}*' if theme == self.globals['theme'] else theme)
-                return SettingsResponse.success(result)
+                    themes_result.append(f'{theme}*' if theme == self.globals['theme'] else theme)
+                return SettingsResponse.success(themes_result)
+            elif arg == 'open_dialog_platform':
+                if len(parts) == 4:
+                    return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
+                platf_result = self.globals[arg]
+                return SettingsResponse.success(str(platf_result))
             elif arg in ('filename_len', 'sidebar_limit'):
                 if len(parts) == 4:
                     return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
-                result: int = self.globals[arg]
-                return SettingsResponse.success(str(result))
+                num_result = self.globals[arg]
+                return SettingsResponse.success(str(num_result))
             elif arg in ('sidebar_strict_on_tab', 'night_mode'):
                 if len(parts) == 4:
                     return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
-                result: bool = self.is_bool_set(arg)
-                return SettingsResponse.success(str(result))
+                bool_result = self.is_bool_set(arg)
+                return SettingsResponse.success(str(bool_result))
             elif arg in PLATFORMS:
                 if len(parts) == 4:
                     subarg = parts[3]
@@ -450,6 +460,15 @@ class AppSettings:
                 self.__globals[arg] = value
                 self.__save_config()
                 return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')
+            elif arg == 'open_dialog_platform':
+                if len(parts) > 4:
+                    return SettingsResponse.error('Too many arguments for "global set" command.')
+                value = parts[3]
+                if value not in PLATFORMS:
+                    return SettingsResponse.error(f'Unsupported platform: {value}.')
+                self.__globals[arg] = value
+                self.__save_config()
+                return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')
             elif arg in ('filename_len', 'sidebar_limit'):
                 if len(parts) > 4:
                     return SettingsResponse.error(f'Too many arguments for "global set {arg}" command.')
@@ -464,7 +483,7 @@ class AppSettings:
                     return SettingsResponse.error(f'Too many arguments for "global set {arg}" command.')
                 value = parts[3]
                 if value not in ('0', '1', 'on', 'off', 0, 1):
-                    raise SettingsResponse.error('Value must be in (0, 1, on, off).')
+                    return SettingsResponse.error('Value must be in (0, 1, on, off).')
                 self.__globals[arg] = value
                 self.__save_config()
                 return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')

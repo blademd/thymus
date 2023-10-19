@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from textual.app import App
+from textual.app import App, ComposeResult
 from textual.widgets import (
     Footer,
     Static,
@@ -17,21 +17,22 @@ from . import (
     SCREENS_SAVES_DIR,
 )
 from .app_settings import AppSettings
-from .tui.open_dialog import OpenDialog
-from .tui.modals.quit_modal import QuitApp
-from .tui.modals.contexts_modal import ContextListScreen
-from .tui.modals.logs_modal import LogsScreen
+from .tui import OpenDialog
+from .tui.modals import (
+    QuitApp,
+    ContextListScreen,
+    LogsScreen,
+)
 
 
 if TYPE_CHECKING:
-    from textual.app import ComposeResult
     from textual.events import Resize
 
     import logging
 
 
 class TThymus(App):
-    CSS_PATH = 'tui/styles/main.css'
+    CSS_PATH = 'styles/main.css'
     SCREENS = {
         'open_file': OpenDialog()
     }
@@ -45,9 +46,9 @@ class TThymus(App):
     ]
     working_screens: var[list[str]] = var([])
     settings: var[AppSettings] = var(AppSettings())
-    logger: var[logging.Logger] = var(None)
+    logger: var[Optional[logging.Logger]] = var(None)
     is_logo_downscaled: var[bool] = var(False)
-    logo: var[Static] = var(None)
+    logo: var[Optional[Static]] = var(None)
 
     def __scale_logo(self, is_down: bool) -> None:
         try:

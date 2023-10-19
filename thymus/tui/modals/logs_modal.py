@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from logging.handlers import BufferingHandler
-from pygments.token import (
+from pygments.token import (  # type: ignore
     Whitespace,
     Keyword,
     Generic,
@@ -64,6 +64,8 @@ class LogsScreen(ModalScreen):
         theme = ANSISyntaxTheme(SYSLOG_DARK_STYLES)
         if not self.app.dark:
             theme = ANSISyntaxTheme(SYSLOG_LIGHT_STYLES)
+        if not self.app.logger:
+            return
         for handler in self.app.logger.handlers:
             if type(handler) is not BufferingHandler:
                 continue

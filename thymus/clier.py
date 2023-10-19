@@ -1,21 +1,20 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import sys
+import time
+
+from typing import Optional
+from logging import Logger, getLogger
 
 from .contexts import (
+    Context,
     JunOSContext,
     IOSContext,
     EOSContext
 )
 
-import sys
-import time
-
-
-if TYPE_CHECKING:
-    from .contexts import Context
-
-NOS_LIST = {
+ENCODING = 'utf-8'
+NOS_LIST: dict[str, type[Context]] = {
     'junos': JunOSContext,
     'ios': IOSContext,
     'eos': EOSContext,
@@ -34,18 +33,20 @@ class SystemWrapper:
         '__contexts',
         '__current',
         '__number',
+        '__logger',
     )
 
     def __init__(self) -> None:
         self.__base_prompt: str = 'thymus> '
         self.__contexts: dict[str, Context] = {}
-        self.__current: Context = {}
+        self.__current: Optional[Context] = None
         self.__number: int = 0
+        self.__logger: Logger = getLogger('clier_logger')
 
     def __open_config(self, args: list[str]) -> None:
         if len(args) != 2:
             err_print('Incorrect arguments for "open". Usage: "open nos_type file".')
-            return
+            return None
         nos = args[0]
         config_path = args[1]
         nos = nos.lower()
@@ -53,29 +54,37 @@ class SystemWrapper:
             err_print(f'Unknown network OS: {nos}. Use:')
             for key in NOS_LIST:
                 err_print(f'\t{key}')
-            return
+            return None
         config: list[str] = []
         try:
             with open(config_path, encoding='utf-8-sig', errors='replace') as f:
                 config = f.readlines()
         except FileNotFoundError:
             err_print(f'Cannot open the file: {config_path}.')
-            return
+            return None
         context_name = f'vty{self.__number}'
-        self.__contexts[context_name] = NOS_LIST[nos](context_name, config)
+        self.__contexts[context_name] = NOS_LIST[nos](
+            context_name,
+            config,
+            encoding=ENCODING,
+            settings={},
+            logger=self.__logger
+        )
         self.__current = self.__contexts[context_name]
         self.__number += 1
+        print(f'[{nos}] "{config_path}" successfully opened!')
 
     def __switch_context(self, args: list[str]) -> None:
         if len(args) != 1:
             err_print('Incorrect arguments for "switch".')
-            return
+            return None
         context_name = args[0]
         if context_name not in self.__contexts or not self.__contexts[context_name]:
             err_print(f'No such a context: {context_name}.')
-            return
+            return None
         self.__current = self.__contexts[context_name]
         print(f'Context is switched to: {context_name}.')
+        return None
 
     def __new_prompt(self) -> str:
         if not self.__current:
@@ -104,10 +113,12 @@ class SystemWrapper:
                 err_print('Unknown command or no valid context.')
                 return self.__base_prompt
             result = self.__current.on_enter(value)
-            out = print if result.is_ok else err_print
             for line in result.value:
                 if line:
-                    out(line)
+                    if result.is_ok:
+                        print(line)
+                    else:
+                        err_print(line)
             return self.__new_prompt()
         return self.__base_prompt
 
@@ -129,3 +140,4 @@ def main() -> None:
         t = time.time()
         prompt = cli.process_command(user_input)
         print(f'\nCommand execution time is {time.time() - t} secs.')
+    return None

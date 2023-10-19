@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from ..common.regexps import IPV4_REGEXP, IPV6_REGEXP
 
-from pygments.lexer import RegexLexer, bygroups
-from pygments.token import (
+from pygments.lexer import RegexLexer, bygroups  # type: ignore
+from pygments.token import (  # type: ignore
     Text,
     Generic,
     Whitespace,

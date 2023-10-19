@@ -1,6 +1,6 @@
-__version__ = '0.1.4-alpha'
+__version__ = '0.1.5-alpha'
 
-CONFIG_PATH = 'thymus/settings/'
+CONFIG_PATH = 'settings/'
 CONFIG_NAME = 'thymus.json'
 WELCOME_TEXT = '''\
 ▄▄▄█████▓ ██░ ██▓██   ██▓ ███▄ ▄███▓ █    ██   ██████
@@ -17,13 +17,13 @@ WELCOME_TEXT = '''\
 
 '''
 WELCOME_TEXT_LEN = 55
-SAVES_DIR = 'thymus/saves/'
-SCREENS_SAVES_DIR = 'thymus/saves/screenshots/'
-LOGGING_CONF_DIR = 'thymus/settings/'
+SAVES_DIR = 'saves/'
+SCREENS_SAVES_DIR = 'saves/screenshots/'
+LOGGING_CONF_DIR = 'settings/'
 LOGGING_CONF = LOGGING_CONF_DIR + 'logging.conf'
 LOGGING_CONF_ENCODING = 'utf-8'
 LOGGING_LEVEL = 'INFO'
-LOGGING_FILE_DIR = 'thymus/log/'
+LOGGING_FILE_DIR = 'log/'
 LOGGING_FILE = LOGGING_FILE_DIR + 'thymus.log'
 LOGGING_FILE_ENCODING = 'utf-8'
 LOGGING_FILE_MAX_SIZE_BYTES = 5000000

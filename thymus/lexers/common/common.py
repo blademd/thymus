@@ -1,34 +1,22 @@
 from __future__ import annotations
 
 from re import MULTILINE, IGNORECASE
-from typing import TYPE_CHECKING
-
-import sys
-
-from pygments.lexer import RegexLexer, bygroups
-from pygments.token import (
+from typing import Any
+from pygments.lexer import RegexLexer, bygroups  # type: ignore
+from pygments.token import (  # type: ignore
     Generic,
     Whitespace,
     Keyword,
     Comment,
+    _TokenType,
 )
-
-
-if TYPE_CHECKING:
-    if sys.version_info.major == 3 and sys.version_info.minor >= 9:
-        from collections.abc import Callable
-    else:
-        from typing import Callable
-    from typing import Optional, Any
-
-    from pygments.token import _TokenType
 
 
 def wr(
     reg_exp: str,
     *args: tuple[_TokenType, ...],
-    **kwargs: dict[str, str]
-) -> tuple[str, Callable[[tuple[Any, ...]], Any], Optional[str]]:
+    **kwargs: Any
+) -> tuple[Any, ...]:
     if 'stage' in kwargs and kwargs['stage']:
         if len(args) > 1:
             return reg_exp, bygroups(*args), kwargs['stage']

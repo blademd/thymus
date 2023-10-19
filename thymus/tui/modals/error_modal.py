@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from textual import on
 from textual.containers import Grid
@@ -9,8 +9,6 @@ from textual.widgets import Button, Label
 
 
 if TYPE_CHECKING:
-    from typing import Optional
-
     from textual.app import ComposeResult
 
 

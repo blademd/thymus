@@ -28,8 +28,8 @@ from textual.widgets import (
     LoadingIndicator,
 )
 
-from .working_screen.working_screen import WorkingScreen
-from .modals.error_modal import ErrorScreen
+from .working_screen import WorkingScreen
+from .modals import ErrorScreen
 from .net_loader import NetLoader
 
 
@@ -142,10 +142,13 @@ class OpenDialog(ModalScreen):
         self.lock = False
 
     def compose(self) -> ComposeResult:
+        platform_index = 0
+        if platform := self.app.settings.globals.get('open_dialog_platform', ''):
+            platform_index = self.app.settings.platforms.index(str(platform))
         with Horizontal(id='od-main-container'):
             with Vertical(id='od-left-block'):
                 yield Static('Select platform:')
-                with ListView(id='od-nos-switch'):
+                with ListView(id='od-nos-switch', initial_index=platform_index):
                     yield ListItem(Label('Juniper JunOS', name='junos'))
                     yield ListItem(Label('Cisco IOS', name='ios'))
                     yield ListItem(Label('Cisco NX-OS', name='nxos'))
@@ -262,6 +265,10 @@ class OpenDialog(ModalScreen):
         else:
             if not control.value or control.value == '22' or not control.value.isdigit():
                 control.value = '23'
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        if event.item and event.item.children:
+            self.app.settings.process_command(f'global set open_dialog_platform {event.item.children[0].name}')
 
     def action_focus(self, target: str) -> None:
         if target == 'platform':

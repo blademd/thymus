@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import sys
+import re
+
+from typing import TYPE_CHECKING, Optional
 from collections import deque
 
-from .context import (
-    Context,
-    FabricException,
-    UP_LIMIT,
-)
-from ..responses import (
-    ContextResponse,
-    AlertResponse,
-)
-from ..parsers.junos import (
+if sys.version_info.major == 3 and sys.version_info.minor >= 9:
+    from collections.abc import Generator, Iterable, Iterator
+else:
+    from typing import Generator, Iterable, Iterator
+
+from thymus_ast.junos import (  # type: ignore
+    Root,
+    Node,
     construct_tree,
     lazy_parser,
     lazy_provide_config,
@@ -23,25 +24,23 @@ from ..parsers.junos import (
     draw_inactive_tree,
     draw_diff_tree,
 )
-from ..lexers import JunosLexer
 
-import sys
-import re
+from .context import (
+    Context,
+    FabricException,
+    UP_LIMIT,
+)
+from ..responses import (
+    Response,
+    ContextResponse,
+    AlertResponse,
+)
+from ..lexers import JunosLexer
+from ..misc import find_common
 
 
 if TYPE_CHECKING:
-    from typing import Optional
-    if sys.version_info.major == 3 and sys.version_info.minor >= 9:
-        from collections.abc import Generator, Iterable
-    else:
-        from typing import Generator, Iterable
     from logging import Logger
-
-    from ..responses import Response
-    from ..parsers.junos import (
-        Root,
-        Node,
-    )
 
 
 class JunOSContext(Context):
@@ -51,7 +50,7 @@ class JunOSContext(Context):
         '__virtual_cursor',
     )
     __store: list[JunOSContext] = []
-    lexer: JunosLexer = JunosLexer
+    lexer: type[JunosLexer] = JunosLexer
 
     @property
     def prompt(self) -> str:
@@ -111,7 +110,7 @@ class JunOSContext(Context):
                 if name.startswith('inactive: '):
                     name = name.replace('inactive: ', '')
                 if name.startswith(comp):
-                    yield name
+                    yield child['name']
 
         if not parts or not self.__virtual_cursor['children']:
             return
@@ -144,7 +143,7 @@ class JunOSContext(Context):
             # showing all sections that names start with the head
             yield from get_heads(self.__virtual_cursor, head)
 
-    def __prepand_nop(self, data: Iterable[str]) -> Generator[str, None, None]:
+    def __prepand_nop(self, data: Iterable[str]) -> Generator[str | Exception, None, None]:
         '''
         This method simply adds a blank line to a head of the stream. If the stream is not lazy, it also converts it.
         The blank line is then eaten by __process_fabric method or __mod methods. Final stream does not contain it.
@@ -164,22 +163,29 @@ class JunOSContext(Context):
             if len(parts) > 2 and (parts[1] in self.keywords['show'] or parts[1] in self.keywords['go']):
                 self.__virtual_cursor = self.__tree
                 yield from self.__update_virtual_cursor(deque(parts[2:]))
+        elif parts[0] in self.keywords['up']:
+            if len(parts) > 2 and (parts[1] in self.keywords['show'] or parts[1] in self.keywords['go']):
+                if self.__cursor['name'] != 'root':
+                    self.__virtual_cursor = self.__cursor['parent']
+                yield from self.__update_virtual_cursor(deque(parts[2:]))
         elif parts[0] in self.keywords['show'] or parts[0] in self.keywords['go']:
             if len(parts) != 1:
                 self.__virtual_cursor = self.__cursor
                 yield from self.__update_virtual_cursor(deque(parts[1:]))
 
     def get_virtual_from(self, value: str) -> str:
-        # little bit hacky here
         value = value.lower()
+        # little bit hacky here
         if m := re.search(r'([-a-z0-9\/]+)\.(\d+)', value, re.I):
             value = value.replace(f'{m.group(1)}.{m.group(2)}', f'{m.group(1)} unit {m.group(2)}')
         parts = value.split()
         if len(parts) < 2:
             return ''
-        if parts[0] == 'top':
+        first = ''
+        if parts[0] == 'top' or parts[0] == 'up':
             if len(parts) < 3:
                 return ''
+            first = parts[0]
             parts = parts[1:]
         if parts[0] not in self.keywords['show'] and parts[0] not in self.keywords['go']:
             return ''
@@ -188,15 +194,39 @@ class JunOSContext(Context):
             return new_value
         path = self.__virtual_cursor['path']
         path = path.replace('inactive: ', '')
-        if self.__cursor['name'] != 'root':
+        rpath = self.__cursor['path'] if self.__cursor['name'] != 'root' else ''
+        if not first and self.__cursor['name'] != 'root':
             path = path.replace(self.__cursor['path'], '', 1)
-        path = path.replace(self.delimiter, ' ')
-        path = path.strip().lower()
-        if new_value.startswith(path):
-            return new_value.replace(path, '', 1)
+        spath = path.replace(self.delimiter, ' ')
+        spath = spath.strip().lower()
+        if first == 'up':
+            if path.startswith(rpath):
+                # when a user tries to do `up show x y`
+                # and the user is in `x` already
+                xparts = spath.split()
+                for index, xpart in enumerate(xparts):
+                    if new_value.startswith(xpart):
+                        break
+                return new_value.replace(' '.join(xparts[index:]), '', 1)
+            else:
+                common = find_common([path, rpath])
+                common = common.replace(self.delimiter, ' ')
+                common = common.strip()
+                xpath = path.replace(common, '', 1)
+                xpath = xpath.replace(self.delimiter, ' ')
+                xpath = xpath.strip()
+                if new_value.startswith(xpath):
+                    return new_value.replace(xpath, '', 1)
+        else:
+            if new_value.startswith(spath):
+                return new_value.replace(spath, '', 1)
         return new_value
 
-    def mod_wildcard(self, data: Iterable[str], args: list[str]) -> Generator[str | FabricException, None, None]:
+    def mod_wildcard(
+        self,
+        data: Iterator[str] | Generator[str | Exception, None, None],
+        args: list[str]
+    ) -> Generator[str | Exception, None, None]:
         # passthrough modificator
         if not data or len(args) != 1:
             yield FabricException('Incorrect arguments for "wildcard".')
@@ -213,13 +243,13 @@ class JunOSContext(Context):
                     yield '\n'
                     yield from lazy_wc_parser(data, '', args[0], self.delimiter)
             except StopIteration:
-                yield FabricException
+                yield FabricException()
 
     def mod_diff(
         self,
         args: list[str],
         jump_node: Optional[Node] = None
-    ) -> Generator[str | FabricException, None, None]:
+    ) -> Generator[str | Exception, None, None]:
         if len(args) != 1:
             yield FabricException('There must be one argument for "diff".')
         if not self.name:
@@ -229,13 +259,14 @@ class JunOSContext(Context):
         context_name = args[0]
         if self.name == context_name:
             yield FabricException('You can\'t compare the same context.')
-        remote_context: JunOSContext = None
+        remote_context: Optional[JunOSContext] = None
         for elem in self.__store:
             if elem.name == context_name:
                 remote_context = elem
                 break
         else:
             yield FabricException('Remote context has not been found.')
+        assert remote_context is not None  # mypy's satisfier
         target: Root | Node = None
         peer: Root | Node = None
         if jump_node:
@@ -257,20 +288,20 @@ class JunOSContext(Context):
         yield '\n'
         yield from draw_diff_tree(tree, tree['name'])
 
-    def mod_inactive(self, jump_node: Optional[Node] = []) -> Generator[str | FabricException, None, None]:
+    def mod_inactive(self, jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
         node = self.__cursor if not jump_node else jump_node
         tree = search_inactives(node)
         yield '\n'
         yield from draw_inactive_tree(tree, tree['name'])
 
-    def mod_stubs(self, jump_node: Optional[Node] = []) -> Generator[str | FabricException, None, None]:
+    def mod_stubs(self, jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
         node = self.__cursor if not jump_node else jump_node
         if not node['stubs']:
             yield FabricException('No stubs at this level.')
         yield '\n'
         yield from node['stubs']
 
-    def mod_sections(self, jump_node: Optional[Node] = []) -> Generator[str | FabricException, None, None]:
+    def mod_sections(self, jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
         node = self.__cursor if not jump_node else jump_node
         if not node['children']:
             yield FabricException('No sections at this level.')
@@ -281,7 +312,7 @@ class JunOSContext(Context):
         self,
         args: list[str],
         jump_node: Optional[Node] = []
-    ) -> Generator[str | FabricException, None, None]:
+    ) -> Generator[str | Exception, None, None]:
 
         def replace_path(source: str, path: str) -> str:
             return source.replace(path, '').replace(self.delimiter, ' ').strip()
@@ -311,7 +342,8 @@ class JunOSContext(Context):
         data: Iterable[str],
         mods: list[list[str]],
         *,
-        jump_node: Optional[Node] = None
+        jump_node: Optional[Node] = None,
+        banned: list[str] = []
     ) -> Response:
 
         def __check_leading_mod(name: str, position: int, args_count: int, args_limit: int = 0) -> None:
@@ -321,46 +353,48 @@ class JunOSContext(Context):
                 raise FabricException(f'Incorrect number of arguments for "{name}". Must be {args_limit}.')
 
         is_flat_out: bool = True
-        data = self.__prepand_nop(data)
+        recol_data = self.__prepand_nop(data)
         try:
             for number, elem in enumerate(mods):
                 command = elem[0]
+                if command in banned:
+                    raise FabricException(f'You cannot use the "{command}" with this main command.')
                 if command in self.keywords['filter']:
-                    data = self.mod_filter(data, elem[1:])
+                    recol_data = self.mod_filter(recol_data, elem[1:])
                 elif command in self.keywords['wildcard']:
-                    data = self.mod_wildcard(data, elem[1:])
+                    recol_data = self.mod_wildcard(recol_data, elem[1:])
                     is_flat_out = False
                 elif command in self.keywords['save']:
-                    data = lazy_provide_config(data, block=' ' * self.spaces)
-                    data = self.mod_save(data, elem[1:])
+                    recol_data = lazy_provide_config(recol_data, block=' ' * self.spaces)
+                    recol_data = self.mod_save(recol_data, elem[1:])
                     break
                 elif command in self.keywords['count']:
-                    data = self.mod_count(data, elem[1:])
+                    recol_data = self.mod_count(recol_data, elem[1:])
                     break
                 elif command in self.keywords['diff']:
                     __check_leading_mod(command, number, len(elem[1:]), 1)
-                    data = self.mod_diff(elem[1:], jump_node)
+                    recol_data = self.mod_diff(elem[1:], jump_node)
                 elif command in self.keywords['inactive']:
                     __check_leading_mod(command, number, len(elem[1:]))
-                    data = self.mod_inactive(jump_node)
+                    recol_data = self.mod_inactive(jump_node)
                     is_flat_out = False
                 elif command in self.keywords['stubs']:
                     __check_leading_mod(command, number, len(elem[1:]))
-                    data = self.mod_stubs(jump_node)
+                    recol_data = self.mod_stubs(jump_node)
                 elif command in self.keywords['sections']:
                     __check_leading_mod(command, number, len(elem[1:]))
-                    data = self.mod_sections(jump_node)
+                    recol_data = self.mod_sections(jump_node)
                 elif command in self.keywords['contains']:
                     __check_leading_mod(command, number, len(elem[1:]), 1)
-                    data = self.mod_contains(elem[1:], jump_node)
+                    recol_data = self.mod_contains(elem[1:], jump_node)
                 else:
                     raise FabricException(f'Unknown modificator "{command}".')
-            head: str | FabricException = next(data)
+            head = next(recol_data)
             if isinstance(head, Exception):
                 raise head
             if is_flat_out:
-                return ContextResponse.success(map(lambda x: x.strip(), data))
-            return ContextResponse.success(lazy_provide_config(data, block=' ' * self.spaces))
+                return ContextResponse.success(map(lambda x: x.strip() if type(x) is str else x, recol_data))
+            return ContextResponse.success(lazy_provide_config(recol_data, block=' ' * self.spaces))
         except FabricException as err:
             return AlertResponse.error(f'{err}')
         except (AttributeError, IndexError) as err:
@@ -368,7 +402,7 @@ class JunOSContext(Context):
         except StopIteration:
             return AlertResponse.error('Unknown error from the fabric #002.')
 
-    def command_show(self, args: deque[str] = [], mods: list[list[str]] = []) -> Response:
+    def command_show(self, args: deque[str], mods: list[list[str]]) -> Response:
         if args:
             first_arg = args[0]
             if first_arg in self.keywords['version']:
@@ -430,21 +464,21 @@ class JunOSContext(Context):
             self.__cursor = self.__tree
             return AlertResponse.success()
 
-    def command_up(self, args: deque[str]) -> Response:
+    def command_up(self, args: deque[str], mods: list[list[str]]) -> Response:
         steps: int = 1
         if args:
-            if len(args) != 1:
-                return AlertResponse.error('There must be one argument for "up".')
             arg = args.popleft()
             if arg in self.keywords['show']:
                 if self.__cursor['name'] == 'root':
                     return AlertResponse.error('You can\'t do a negative lookahead from the top.')
                 temp = self.__cursor
                 self.__cursor = self.__cursor['parent']
-                result = self.command_show()
+                result = self.command_show(args, mods)
                 self.__cursor = temp
                 return result
             elif arg.isdigit():
+                if len(args) != 1:
+                    return AlertResponse.error('There must be one argument for "up".')
                 steps = min(int(arg), UP_LIMIT)
             else:
                 return AlertResponse.error(f'Incorrect argument for "up": {arg}.')

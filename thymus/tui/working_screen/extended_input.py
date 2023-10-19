@@ -26,7 +26,7 @@ class ExtendedInput(Input):
             out = self.app.settings.process_command(self.value)
             self.screen.draw(out)
         elif self.value.strip() == 'help':
-            out = self.screen.print_help()
+            self.screen.print_help()
         elif out := self.screen.context.on_enter(self.value):
             self.screen.draw(out)
         self.screen.query_one('#ws-sections-list', LeftSidebar).clear()
@@ -39,6 +39,7 @@ class ExtendedInput(Input):
         sidebar = self.screen.query_one('#ws-sections-list', LeftSidebar)
         if self.value:
             param = message.value
+            # pipe here is for the auto-filling of the left sidebar
             if message.value[-1] == ' ':
                 param += '|'
         sidebar.update(param)
@@ -75,4 +76,12 @@ class ExtendedInput(Input):
                     sidebar.action_cursor_down()
                 else:
                     textlog.action_scroll_down()
+        elif event.key == 'ctrl+up':
+            if self.screen.context and (prev_cmd := self.screen.context.get_input_from_log()):
+                self.value = prev_cmd
+                self.cursor_position = len(self.value)
+        elif event.key == 'ctrl+down':
+            if self.screen.context and (next_cmd := self.screen.context.get_input_from_log(forward=False)):
+                self.value = next_cmd
+                self.cursor_position = len(self.value)
         super()._on_key(event)

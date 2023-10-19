@@ -1,0 +1,190 @@
+#main-welcome-out {
+    content-align: center middle;
+    height: 1fr;
+}
+
+/* OPEN DIALOG DATA */
+
+.od-disabled {
+    display: none;
+}
+
+.od-labels {
+    width: 15;
+}
+
+.od-hor-con {
+    height: auto;
+}
+
+.od-inputs {
+    width: 35;
+}
+
+.od-inputs.-valid {
+    border: tall $success 60%;
+}
+.od-inputs.-valid:focus {
+    border: tall $success;
+}
+
+#od-right-middle-block {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#od-tabs {
+    dock: top;
+}
+
+#od-hor-con-butns {
+    margin-top: 1;
+}
+
+#od-cap {
+    margin-bottom: 1;
+}
+
+#od-left-block {
+    dock: left;
+    width: 30;
+    height: 100%;
+    border-right: #0f2b30;
+}
+
+#od-directory-tree {
+    scrollbar-gutter: stable;
+}
+
+#od-main-in {
+    dock: bottom;
+ }
+
+#od-error-caption {
+    margin-left: 1;
+    color: red;
+}
+
+#od-top-container {
+    height: auto;
+    dock: top;
+}
+
+#od-open-button {
+    margin-left: 1;
+}
+
+#od-refresh-button {
+    margin-left: 1;
+}
+
+#od-nt-loading {
+    margin-left: 1;
+    content-align: left middle;
+}
+
+/* QUIT MODAL DATA */
+
+QuitApp {
+    align: center middle;
+    background: $primary 30%;
+}
+
+QuitScreen {
+    align: center middle;
+    background: $primary 30%;
+}
+
+#qs-dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 60;
+    height: 11;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+#qs-question {
+    column-span: 2;
+    height: 1fr;
+    width: 1fr;
+    content-align: center middle;
+}
+
+#qs-quit {
+    width: 100%;
+}
+
+#qs-cancel {
+    width: 100%;
+}
+
+/* CONTEXT LIST SCREEN DATA */
+ContextListScreen {
+    align: center middle;
+    background: $primary 30%;
+}
+
+#cm-options {
+    width: 70%;
+    height: 80%;
+}
+
+/* ERROR SCREEN DATA */
+ErrorScreen {
+    align: center middle;
+    background: $primary 30%;
+}
+
+#es-dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 60;
+    height: 11;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+#es-err-msg {
+    column-span: 2;
+    height: 1fr;
+    width: 1fr;
+    content-align: center middle;
+}
+
+#es-quit {
+    width: 100%;
+    content-align: center middle;
+}
+
+/* WS DATA */
+
+#ws-main-in {
+    border: none;
+    padding-top: 1;
+    padding-bottom: 1;
+}
+
+#ws-path-line {
+    background: $secondary-background-lighten-3;
+}
+
+#ws-status-bar {
+    background: $accent;
+}
+
+#ws-left-sidebar {
+    dock: left;
+    width: 30;
+    height: 100%;
+    border-right: #0f2b30;
+}
+
+#ws-right-bottom-controls {
+    height: auto;
+    dock: bottom;
+}
