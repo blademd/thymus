@@ -20,10 +20,12 @@ class StatusBar(Static, can_focus=False):
     screen: WorkingScreen
 
     def update_bar(self) -> None:
+        if not self.screen.context:
+            return
         status: str = ''
         filename = self.screen.filename
-        filename_limit = self.app.settings.globals['filename_len']
-        theme = self.app.settings.globals['theme']
+        filename_limit = int(self.app.settings.current_settings['filename_len'])
+        theme = str(self.app.settings.current_settings['theme'])
         if len(filename) > (filename_limit - max(3, int(filename_limit * 0.1))):
             filename = f'...{filename[-filename_limit:]}'
         if context_name := self.screen.context.name:
@@ -34,7 +36,7 @@ class StatusBar(Static, can_focus=False):
                 LINES=len(self.screen.context.content),
                 THEME=theme.upper(),
                 ENCODING=self.screen.encoding.upper(),
-                FILENAME=filename
+                FILENAME=filename,
             )
         else:
             status = LINE_UNNAMED.format(
@@ -43,7 +45,7 @@ class StatusBar(Static, can_focus=False):
                 LINES=len(self.screen.context.content),
                 THEME=theme.upper(),
                 ENCODING=self.screen.encoding.upper(),
-                FILENAME=filename
+                FILENAME=filename,
             )
         while len(status) > self.size.width:
             parts = status.split()

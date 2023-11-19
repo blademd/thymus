@@ -1,5 +1,5 @@
 
-![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/cce6e2e8-02f1-4d46-82c6-daabf51e3d66)
+![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/8c790c6a-7d11-4cd6-8283-52cf29e8472e)
 
 
 # Thymus
@@ -32,6 +32,10 @@ Thymus supports:
 
 
 </details>
+
+## Installation
+
+Use `pip` to install the project right from its sources (e.g., `pip install thymus/` or `python -m pip install thymus/`).
 
 ## Modes
 

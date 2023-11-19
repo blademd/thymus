@@ -7,19 +7,20 @@ from . import tuier
 from . import clier
 
 
-HELP_MESSAGE = '''There are two possible options to run the Application:
+HELP_MESSAGE = """There are two possible options to run the Application:
 * -- run the Terminal User Interface version:
 ** -- python -m thymus
 ** -- python -m thymus tuier
 
 * -- run the Command Line Interface version:
 ** -- python -m thymus clier
-'''
+"""
 
 
 def run_tui() -> None:
     app = tuier.TThymus()
     app.run()
+
 
 def run_cli() -> None:
     try:
@@ -27,8 +28,10 @@ def run_cli() -> None:
     except KeyboardInterrupt:
         pass
 
+
 def help() -> None:
     print(HELP_MESSAGE)
+
 
 def main(args: list[str]) -> None:
     if len(args) > 1:

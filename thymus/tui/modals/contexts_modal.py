@@ -23,9 +23,7 @@ class ContextListScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         yield OptionList(
-            Option('Please, select a context to work with (Esc to quit):', id='cm-title'),
-            Separator(),
-            id='cm-options'
+            Option('Please, select a context to work with (Esc to quit):', id='cm-title'), Separator(), id='cm-options'
         )
 
     def on_show(self) -> None:

@@ -193,13 +193,7 @@ class IOSContext(Context):
             raise TypeError(f'Incorrect type for promisc: {type(value)}.')
 
     def __init__(
-        self,
-        name: str,
-        content: list[str],
-        *,
-        encoding: str,
-        settings: dict[str, str | int],
-        logger: Logger
+        self, name: str, content: list[str], *, encoding: str, settings: dict[str, str | int], logger: Logger
     ) -> None:
         self.__is_heuristics = False
         self.__is_base_heuristics = True
@@ -212,7 +206,7 @@ class IOSContext(Context):
             is_heuristics=self.__is_heuristics,
             is_base_heuristics=self.__is_base_heuristics,
             is_crop=self.__is_crop,
-            is_promisc=self.__is_promisc
+            is_promisc=self.__is_promisc,
         )
         if not self.__tree:
             raise Exception(f'{self.nos_type}. Impossible to build a tree.')
@@ -236,7 +230,7 @@ class IOSContext(Context):
             is_heuristics=self.__is_heuristics,
             is_base_heuristics=self.__is_base_heuristics,
             is_crop=self.__is_crop,
-            is_promisc=self.__is_promisc
+            is_promisc=self.__is_promisc,
         )
         self.__cursor = self.__tree
         self.logger.debug(f'The tree was rebuilt. {self.nos_type}.')
@@ -245,10 +239,10 @@ class IOSContext(Context):
         return lazy_provide_config(self.content, node, alignment=self.spaces, is_started=True)
 
     def __prepand_nop(self, data: Iterable[str]) -> Generator[str | Exception, None, None]:
-        '''
+        """
         This method simply adds a blank line to a head of the stream. If the stream is not lazy, it also converts it.
         The blank line is then eaten by __process_fabric method or __mod methods. Final stream does not contain it.
-        '''
+        """
         yield '\n'
         yield from data
 
@@ -301,10 +295,10 @@ class IOSContext(Context):
         super().apply_settings(settings)
 
     def update_virtual_cursor(self, value: str) -> Generator[str, None, None]:
-        '''
+        """
         This method receives a value from user's input symbol by symbol
             and tries to guess the next possible path(s) for this input.
-        '''
+        """
         if not value:
             return
         value = value.lower()
@@ -349,16 +343,16 @@ class IOSContext(Context):
         if self.__is_heuristics and command not in self.keywords['go']:
             yield from chain(
                 self.__update_virtual_cursor(copy(data), is_heuristics=False),
-                self.__update_virtual_cursor(copy(data), is_heuristics=True)
+                self.__update_virtual_cursor(copy(data), is_heuristics=True),
             )
         else:
             yield from self.__update_virtual_cursor(data, is_heuristics=False)
 
     def get_virtual_from(self, value: str) -> str:
-        '''
+        """
         This method receives a value from user's input after a Tab's strike and returns
             a word that should be replaced in the input.
-        '''
+        """
         if not value:
             return ''
         parts: list[str] = value.split()
@@ -416,7 +410,7 @@ class IOSContext(Context):
         self,
         data: Iterator[str] | Generator[str | Exception, None, None],
         args: list[str],
-        jump_node: Optional[Node] = None
+        jump_node: Optional[Node] = None,
     ) -> Generator[str | Exception, None, None]:
         if not data or len(args) != 1:
             yield FabricException('Incorrect arguments for "wildcard".')
@@ -441,11 +435,7 @@ class IOSContext(Context):
             except StopIteration:
                 yield FabricException()
 
-    def mod_diff(
-        self,
-        args: list[str],
-        jump_node: Optional[Node] = None
-    ) -> Generator[str | Exception, None, None]:
+    def mod_diff(self, args: list[str], jump_node: Optional[Node] = None) -> Generator[str | Exception, None, None]:
         if len(args) != 1:
             yield FabricException('There must be one argument for "diff".')
         if not self.name:
@@ -454,7 +444,7 @@ class IOSContext(Context):
             yield FabricException('No other contexts.')
         context_name = args[0]
         if self.name == context_name:
-            yield FabricException('You can\'t compare the same context.')
+            yield FabricException("You can't compare the same context.")
         remote_context: Optional[Context] = None
         for elem in self.__store:
             if elem.name == context_name and type(elem) is type(self):
@@ -481,22 +471,14 @@ class IOSContext(Context):
         yield '\n'
         yield from Differ().compare(
             list(lazy_provide_config(self.content, target, self.spaces)),
-            list(lazy_provide_config(remote_context.content, peer, remote_context.spaces))
+            list(lazy_provide_config(remote_context.content, peer, remote_context.spaces)),
         )
 
-    def mod_contains(
-        self,
-        args: list[str],
-        jump_node: Optional[Node] = []
-    ) -> Generator[str | Exception, None, None]:
-
+    def mod_contains(self, args: list[str], jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
         def replace_path(source: str, head: str) -> str:
             return source.replace(head, '').replace(self.delimiter, ' ').strip()
 
-        def lookup_child(
-            node: Node,
-            path: str = ''
-        ) -> Generator[str, None, None]:
+        def lookup_child(node: Node, path: str = '') -> Generator[str, None, None]:
             for child in node.children:
                 yield from lookup_child(child, path)
             if not node.is_accessible:
@@ -519,18 +501,14 @@ class IOSContext(Context):
         yield from lookup_child(node, node.path)
 
     def __process_fabric(
-        self,
-        data: Iterable[str],
-        mods: list[list[str]],
-        *,
-        jump_node: Optional[Node] = None
+        self, data: Iterable[str], mods: list[list[str]], *, jump_node: Optional[Node] = None
     ) -> Response:
-
         def __check_leading_mod(name: str, position: int, args_count: int, args_limit: int = 0) -> None:
             if position:
                 raise FabricException(f'Incorrect position of "{name}".')
             if args_count != args_limit:
                 raise FabricException(f'Incorrect number of arguments for "{name}". Must be {args_limit}.')
+
         recol_data = self.__prepand_nop(data)
         try:
             for number, elem in enumerate(mods):
@@ -633,7 +611,7 @@ class IOSContext(Context):
             arg = args.popleft()
             if arg in self.keywords['show']:
                 if self.__cursor.name == 'root':
-                    return AlertResponse.error('You can\'t do a negative lookahead from the top.')
+                    return AlertResponse.error("You can't do a negative lookahead from the top.")
                 temp = self.__cursor
                 self.command_up(deque(), [])
                 result = self.command_show(args, mods)

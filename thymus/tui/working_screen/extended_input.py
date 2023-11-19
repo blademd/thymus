@@ -19,7 +19,7 @@ class ExtendedInput(Input):
     app: TThymus
     screen: WorkingScreen
 
-    def action_submit(self) -> None:
+    async def action_submit(self) -> None:
         if not self.screen.context or not self.value:
             return
         if self.value.startswith('global '):
@@ -32,7 +32,7 @@ class ExtendedInput(Input):
         self.screen.query_one('#ws-sections-list', LeftSidebar).clear()
         self.screen.query_one('#ws-path-line', PathBar).update_path()
         self.value = ''
-        super().action_submit()
+        await super().action_submit()
 
     async def on_input_changed(self, message: Input.Changed) -> None:
         param = 'go |'
@@ -44,7 +44,7 @@ class ExtendedInput(Input):
                 param += '|'
         sidebar.update(param)
 
-    def _on_key(self, event: Key) -> None:
+    async def _on_key(self, event: Key) -> None:
         sidebar = self.screen.query_one('#ws-sections-list', LeftSidebar)
         textlog = self.screen.query_one('#ws-main-out', ExtendedTextLog)
         if event.key == 'tab':
@@ -61,7 +61,7 @@ class ExtendedInput(Input):
                         self.cursor_position = len(self.value)
                 event.stop()
         elif event.key == 'up':
-            if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
+            if self.app.settings.current_settings['sidebar_strict_on_tab'] in (1, '1', 'on'):
                 textlog.action_scroll_up()
             else:
                 if self.value:
@@ -69,7 +69,7 @@ class ExtendedInput(Input):
                 else:
                     textlog.action_scroll_up()
         elif event.key == 'down':
-            if self.app.settings.is_bool_set('sidebar_strict_on_tab'):
+            if self.app.settings.current_settings['sidebar_strict_on_tab'] in (1, '1', 'on'):
                 textlog.action_scroll_down()
             else:
                 if self.value:
@@ -84,4 +84,4 @@ class ExtendedInput(Input):
             if self.screen.context and (next_cmd := self.screen.context.get_input_from_log(forward=False)):
                 self.value = next_cmd
                 self.cursor_position = len(self.value)
-        super()._on_key(event)
+        await super()._on_key(event)

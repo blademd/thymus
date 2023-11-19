@@ -1,6 +1,4 @@
-__all__ = (
-    'OpenDialog',
-)
+__all__ = ('OpenDialog',)
 
 from .open_dialog import (
     OpenDialog,

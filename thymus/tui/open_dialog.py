@@ -44,21 +44,28 @@ class OpenDialog(ModalScreen):
 
     BINDINGS = [
         ('escape', 'app.pop_screen', 'Pop screen'),
-        ('p', 'focus(\'platform\')', 'Platform'),
-        ('e', 'focus(\'encoding\')', 'Encoding'),
-        ('t', 'focus(\'tree\')', 'Tree'),
-        ('l', 'focus(\'prev_tab\')', ' File tab'),
-        ('r', 'focus(\'next_tab\')', 'Network tab'),
+        ('p', "focus('platform')", 'Platform'),
+        ('e', "focus('encoding')", 'Encoding'),
+        ('t', "focus('tree')", 'Tree'),
+        ('l', "focus('prev_tab')", ' File tab'),
+        ('r', "focus('next_tab')", 'Network tab'),
     ]
     current_path: var[Path] = var(Path.cwd())
     lock: var[bool] = var(False)
 
+    def __get_list_view_value(self, id: str) -> str:
+        control = self.query_one(id, ListView)
+        if not control or not control.highlighted_child or not control.highlighted_child.children:
+            return ''
+        value = control.highlighted_child.children[0].name
+        if not value:
+            return ''
+        return value
+
     def __open(self, filename: str = '', content: list[str] = []) -> None:
         screen_name = str(uuid4())
-        nos_switch = self.query_one('#od-nos-switch', ListView)
-        encoding_switch = self.query_one('#od-encoding-switch', ListView)
-        selected_nos = nos_switch.highlighted_child.children[0].name
-        selected_encoding = encoding_switch.highlighted_child.children[0].name
+        selected_nos = self.__get_list_view_value('#od-nos-switch')
+        selected_encoding = self.__get_list_view_value('#od-encoding-switch')
         try:
             self.app.install_screen(
                 screen=WorkingScreen(
@@ -66,9 +73,9 @@ class OpenDialog(ModalScreen):
                     content=content,
                     nos_type=selected_nos,
                     encoding=selected_encoding,
-                    name=screen_name
+                    name=screen_name,
                 ),
-                name=screen_name
+                name=screen_name,
             )
         except Exception as err:
             self.app.uninstall_screen(screen_name)
@@ -111,7 +118,6 @@ class OpenDialog(ModalScreen):
             return
         self.lock = True
         worker = get_current_worker()
-        platform_ctrl = self.query_one('#od-nos-switch', ListView)
         hostname_ctrl = self.query_one('#od-nt-host-in', Input)
         port_ctrl = self.query_one('#od-nt-port-in', Input)
         username_ctrl = self.query_one('#od-nt-username-in', Input)
@@ -120,14 +126,19 @@ class OpenDialog(ModalScreen):
         if not worker.is_cancelled:
             self.app.call_from_thread(self.freeze_callback, True)
         try:
-            selected_nos = platform_ctrl.highlighted_child.children[0].name
+            selected_nos = self.__get_list_view_value('#od-nos-switch')
+            if not selected_nos:
+                raise Exception('Platform is not found.')
+            platform = self.app.settings.platforms.get(selected_nos)
+            if not platform:
+                raise Exception('Platform is not found.')
             loader = NetLoader(
                 host=hostname_ctrl.value,
                 port=int(port_ctrl.value),
                 username=username_ctrl.value,
                 password=password_ctrl.value,
                 proto=switch_ctrl.pressed_index,
-                platform=selected_nos
+                platform=platform,
             )
             if not worker.is_cancelled:
                 self.app.logger.debug(f'Opening from a remote host: {hostname_ctrl.value}:{port_ctrl.value}.')
@@ -142,17 +153,25 @@ class OpenDialog(ModalScreen):
         self.lock = False
 
     def compose(self) -> ComposeResult:
+        import os
+
         platform_index = 0
-        if platform := self.app.settings.globals.get('open_dialog_platform', ''):
-            platform_index = self.app.settings.platforms.index(str(platform))
+        if choosen_platform := self.app.settings.current_settings.get('open_dialog_platform', ''):
+            try:
+                keys = list(self.app.settings.platforms.keys())
+                platform_index = keys.index(str(choosen_platform))
+            except ValueError:
+                self.app.logger.error('Error has occurred during the loading of platform.')
+        if path := self.app.settings.current_settings.get('default_folder', ''):
+            path = os.path.expanduser(str(path))
+            if os.path.exists(path) and os.path.isdir(path):
+                self.current_path = Path(path)
         with Horizontal(id='od-main-container'):
             with Vertical(id='od-left-block'):
                 yield Static('Select platform:')
                 with ListView(id='od-nos-switch', initial_index=platform_index):
-                    yield ListItem(Label('Juniper JunOS', name='junos'))
-                    yield ListItem(Label('Cisco IOS', name='ios'))
-                    yield ListItem(Label('Cisco NX-OS', name='nxos'))
-                    yield ListItem(Label('Arista EOS', name='eos'))
+                    for platform in self.app.settings.platforms.values():
+                        yield ListItem(Label(platform.full_name, name=platform.short_name.lower()))
                 yield Static('Select encoding:')
                 with ListView(id='od-encoding-switch'):
                     yield ListItem(Label('UTF-8-SIG', name='utf-8-sig'))
@@ -167,7 +186,7 @@ class OpenDialog(ModalScreen):
                         yield Button('OPEN', id='od-open-button', variant='primary')
                         yield Button('REFRESH', id='od-refresh-button', variant='primary')
                     with VerticalScroll():
-                        yield DirectoryTree(path=str(self.current_path.cwd()), id='od-directory-tree')
+                        yield DirectoryTree(path=str(self.current_path), id='od-directory-tree')
                     yield Input(placeholder='Filename', id='od-main-in')
                 # RIGHT TAB
                 with Vertical(id='od-tab-two', classes='od-disabled'):
@@ -179,7 +198,7 @@ class OpenDialog(ModalScreen):
                             classes='od-inputs',
                             validators=[
                                 Length(minimum=1, maximum=256),
-                            ]
+                            ],
                         )
                     with Horizontal(classes='od-hor-con'):
                         yield Static('Port:', id='od-label-port', classes='od-labels')
@@ -189,7 +208,7 @@ class OpenDialog(ModalScreen):
                             classes='od-inputs',
                             validators=[
                                 Number(minimum=1, maximum=65535),
-                            ]
+                            ],
                         )
                     with Horizontal(classes='od-hor-con'):
                         yield Static('Username:', id='od-label-username', classes='od-labels')
@@ -198,7 +217,7 @@ class OpenDialog(ModalScreen):
                             classes='od-inputs',
                             validators=[
                                 Length(minimum=1, maximum=256),
-                            ]
+                            ],
                         )
                     with Horizontal(classes='od-hor-con'):
                         yield Static('Password:', id='od-label-password', classes='od-labels')
@@ -208,7 +227,7 @@ class OpenDialog(ModalScreen):
                             classes='od-inputs',
                             validators=[
                                 Length(minimum=1, maximum=256),
-                            ]
+                            ],
                         )
                     with Horizontal(classes='od-hor-con'):
                         with RadioSet(id='od-net-switch'):
@@ -258,13 +277,13 @@ class OpenDialog(ModalScreen):
             self.query_one('#od-nt-host-in', Input).focus()
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
-        control = self.query_one('#od-nt-port-in', Input)
+        port_ctrl = self.query_one('#od-nt-port-in', Input)
         if event.radio_set.pressed_index == 0:
-            if not control.value or control.value == '23' or not control.value.isdigit():
-                control.value = '22'
+            if not port_ctrl.value or port_ctrl.value == '23' or not port_ctrl.value.isdigit():
+                port_ctrl.value = '22'
         else:
-            if not control.value or control.value == '22' or not control.value.isdigit():
-                control.value = '23'
+            if not port_ctrl.value or port_ctrl.value == '22' or not port_ctrl.value.isdigit():
+                port_ctrl.value = '23'
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         if event.item and event.item.children:

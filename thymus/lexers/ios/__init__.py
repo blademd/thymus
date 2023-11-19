@@ -1,5 +1,3 @@
-__all__ = (
-    'IOSLexer',
-)
+__all__ = ('IOSLexer',)
 
 from .ios import IOSLexer

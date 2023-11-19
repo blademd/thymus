@@ -11,12 +11,6 @@ class EOSContext(IOSContext):
         return 'EOS'
 
     def __init__(
-        self,
-        name: str,
-        content: list[str],
-        *,
-        encoding: str,
-        settings: dict[str, str | int],
-        logger: Logger
+        self, name: str, content: list[str], *, encoding: str, settings: dict[str, str | int], logger: Logger
     ) -> None:
         super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)

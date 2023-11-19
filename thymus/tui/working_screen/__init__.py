@@ -1,6 +1,4 @@
-__all__ = (
-    'WorkingScreen',
-)
+__all__ = ('WorkingScreen',)
 
 from .working_screen import (
     WorkingScreen,

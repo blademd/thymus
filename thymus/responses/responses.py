@@ -4,7 +4,7 @@ from typing import Any
 
 
 class Response:
-    __slots__: tuple[str, ...] = (
+    __slots__ = (
         '__status',
         '__value',
     )
@@ -39,14 +39,18 @@ class Response:
     def success(cls, value: Any = '') -> Response:
         return cls('success', value)
 
+
 class SettingsResponse(Response):
     ...
+
 
 class AlertResponse(Response):
     ...
 
+
 class ContextResponse(Response):
     rtype: str = 'data'
+
 
 class RichResponse(Response):
     rtype: str = 'rich'

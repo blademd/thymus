@@ -17,13 +17,6 @@ from textual.widgets import (
 from rich.text import Text
 from rich.syntax import Syntax
 
-from ...contexts import (
-    Context,
-    JunOSContext,
-    IOSContext,
-    EOSContext,
-    NXOSContext,
-)
 from .extended_textlog import ExtendedTextLog
 from .extended_input import ExtendedInput
 from .status_bar import StatusBar
@@ -37,15 +30,8 @@ from ... import CONTEXT_HELP
 if TYPE_CHECKING:
     from textual.app import ComposeResult
 
+    from ...contexts import Context
     from ...tuier import TThymus
-
-
-PLATFORMS: dict[str, type[Context]] = {
-    'junos': JunOSContext,
-    'ios': IOSContext,
-    'eos': EOSContext,
-    'nxos': NXOSContext,
-}
 
 
 class WorkingScreen(Screen):
@@ -63,13 +49,7 @@ class WorkingScreen(Screen):
     draw_data: var[Optional[Response]] = var(None)
 
     def __init__(
-        self,
-        nos_type: str,
-        encoding: str,
-        filename: str = '',
-        content: list[str] = [],
-        *args,
-        **kwargs
+        self, nos_type: str, encoding: str, filename: str = '', content: list[str] = [], *args, **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
         self.nos_type = nos_type
@@ -90,19 +70,19 @@ class WorkingScreen(Screen):
             self.filename = self.screen.name
         else:
             self.filename = 'unset'
-        if context := PLATFORMS.get(nos_type, None):
-            self.context = context(
+        if platform := self.app.settings.platforms.get(nos_type):
+            self.context = platform.context(  # type: ignore
                 name='',
                 content=content,
                 encoding=encoding,
-                settings=getattr(self.app.settings, nos_type),
-                logger=self.app.logger
+                settings=platform.current_settings,
+                logger=self.app.logger,
             )
         if not self.context:
             err_msg = f'Failed to load context for "{self.filename}".'
             self.app.logger.error(err_msg)
             raise Exception(err_msg, 'logged')
-        self.app.logger.info(f'File "{self.filename}" for the platform "{nos_type}" was opened.')
+        self.app.logger.info(f'File "{self.filename}" was successfully opened [{nos_type.upper()}].')
 
     def compose(self) -> ComposeResult:
         with Horizontal(id='ws-right-field'):
@@ -122,8 +102,10 @@ class WorkingScreen(Screen):
         self.print_help()
 
     def __draw(self, multiplier: int = 1) -> None:
+        if not self.draw_data or not self.context:
+            return
         control = self.query_one('#ws-main-out', RichLog)
-        theme = self.app.settings.globals['theme']
+        theme = str(self.app.settings.current_settings['theme'])
         height = control.size.height
         width = control.size.width - 2
         color = control.styles.background.rich_color.name
@@ -139,7 +121,7 @@ class WorkingScreen(Screen):
                         lexer=self.context.lexer(),
                         theme=theme,
                         code_width=code_width,
-                        background_color=color
+                        background_color=color,
                     )
                     control.write(syntax, scroll_end=False)
                 elif self.draw_data.rtype == 'rich':
@@ -169,17 +151,29 @@ class WorkingScreen(Screen):
         self.__draw(multiplier)
 
     def print_help(self) -> None:
+        import json
+        import pathlib
+
+        if not self.context:
+            return
+
         try:
+            template_path = pathlib.Path(__file__).resolve().parent.parent.parent
+            template_path = template_path.joinpath(CONTEXT_HELP)
+            f = open(str(template_path), encoding='utf-8')
+            data = json.load(f)
+            if not data:
+                return
             body: list[str] = []
-            body.append(CONTEXT_HELP['header'].format(NOS=self.nos_type.upper()))
-            for k, v in CONTEXT_HELP['singletones'].items():
+            body.append(data['header'].format(NOS=self.nos_type.upper()))
+            for k, v in data['singletones'].items():
                 if k in self.context.keywords and self.context.keywords[k]:
                     body.append(v.format(CMDS=', '.join(self.context.keywords[k])))
-            body.append(CONTEXT_HELP['modificators_header'])
-            for k, v in CONTEXT_HELP['modificators'].items():
+            body.append(data['modificators_header'])
+            for k, v in data['modificators'].items():
                 if k in self.context.keywords and self.context.keywords[k]:
                     body.append(v.format(CMDS=', '.join(self.context.keywords[k])))
-            body.append(CONTEXT_HELP['footer'])
+            body.append(data['footer'])
             r = RichResponse.success(body)
             self.draw(r)
         except Exception as err:

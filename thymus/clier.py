@@ -6,12 +6,7 @@ import time
 from typing import Optional
 from logging import Logger, getLogger
 
-from .contexts import (
-    Context,
-    JunOSContext,
-    IOSContext,
-    EOSContext
-)
+from .contexts import Context, JunOSContext, IOSContext, EOSContext
 
 ENCODING = 'utf-8'
 NOS_LIST: dict[str, type[Context]] = {
@@ -20,8 +15,10 @@ NOS_LIST: dict[str, type[Context]] = {
     'eos': EOSContext,
 }
 
+
 def err_print(*args, **kwargs) -> None:
     print(*args, file=sys.stderr, **kwargs)
+
 
 def usage() -> None:
     err_print('Usage is not written yet.')
@@ -64,11 +61,7 @@ class SystemWrapper:
             return None
         context_name = f'vty{self.__number}'
         self.__contexts[context_name] = NOS_LIST[nos](
-            context_name,
-            config,
-            encoding=ENCODING,
-            settings={},
-            logger=self.__logger
+            context_name, config, encoding=ENCODING, settings={}, logger=self.__logger
         )
         self.__current = self.__contexts[context_name]
         self.__number += 1
@@ -134,7 +127,12 @@ def main() -> None:
             print(prompt)
             continue
         user_input = user_input.strip()
-        if user_input in ('exit', 'quit', 'stop', 'logout',):
+        if user_input in (
+            'exit',
+            'quit',
+            'stop',
+            'logout',
+        ):
             print('Goodbye!')
             break
         t = time.time()

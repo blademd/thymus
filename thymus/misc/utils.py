@@ -12,5 +12,6 @@ def find_common(elems: list[str]) -> str:
             return result
     return result
 
+
 def rreplace(line: str, pattern: str, replacement: str, count: int = 1) -> str:
     return replacement.join(line.rsplit(pattern.lstrip(), count))

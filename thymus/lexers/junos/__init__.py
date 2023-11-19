@@ -1,5 +1,3 @@
-__all__ = (
-    'JunosLexer',
-)
+__all__ = ('JunosLexer',)
 
 from .junos import JunosLexer

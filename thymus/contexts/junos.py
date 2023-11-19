@@ -68,13 +68,7 @@ class JunOSContext(Context):
         return 'JUNOS'
 
     def __init__(
-        self,
-        name: str,
-        content: list[str],
-        *,
-        encoding: str,
-        settings: dict[str, str | int],
-        logger: Logger
+        self, name: str, content: list[str], *, encoding: str, settings: dict[str, str | int], logger: Logger
     ) -> None:
         super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
         self.__tree: Root = construct_tree(self.content, self.delimiter)
@@ -144,10 +138,10 @@ class JunOSContext(Context):
             yield from get_heads(self.__virtual_cursor, head)
 
     def __prepand_nop(self, data: Iterable[str]) -> Generator[str | Exception, None, None]:
-        '''
+        """
         This method simply adds a blank line to a head of the stream. If the stream is not lazy, it also converts it.
         The blank line is then eaten by __process_fabric method or __mod methods. Final stream does not contain it.
-        '''
+        """
         yield '\n'
         yield from data
 
@@ -223,9 +217,7 @@ class JunOSContext(Context):
         return new_value
 
     def mod_wildcard(
-        self,
-        data: Iterator[str] | Generator[str | Exception, None, None],
-        args: list[str]
+        self, data: Iterator[str] | Generator[str | Exception, None, None], args: list[str]
     ) -> Generator[str | Exception, None, None]:
         # passthrough modificator
         if not data or len(args) != 1:
@@ -245,11 +237,7 @@ class JunOSContext(Context):
             except StopIteration:
                 yield FabricException()
 
-    def mod_diff(
-        self,
-        args: list[str],
-        jump_node: Optional[Node] = None
-    ) -> Generator[str | Exception, None, None]:
+    def mod_diff(self, args: list[str], jump_node: Optional[Node] = None) -> Generator[str | Exception, None, None]:
         if len(args) != 1:
             yield FabricException('There must be one argument for "diff".')
         if not self.name:
@@ -258,7 +246,7 @@ class JunOSContext(Context):
             yield FabricException('No other contexts.')
         context_name = args[0]
         if self.name == context_name:
-            yield FabricException('You can\'t compare the same context.')
+            yield FabricException("You can't compare the same context.")
         remote_context: Optional[JunOSContext] = None
         for elem in self.__store:
             if elem.name == context_name:
@@ -308,12 +296,7 @@ class JunOSContext(Context):
         yield '\n'
         yield from map(lambda x: x['name'], node['children'])
 
-    def mod_contains(
-        self,
-        args: list[str],
-        jump_node: Optional[Node] = []
-    ) -> Generator[str | Exception, None, None]:
-
+    def mod_contains(self, args: list[str], jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
         def replace_path(source: str, path: str) -> str:
             return source.replace(path, '').replace(self.delimiter, ' ').strip()
 
@@ -338,14 +321,8 @@ class JunOSContext(Context):
         yield from lookup_child(node, node['path'] if 'path' in node else '')
 
     def __process_fabric(
-        self,
-        data: Iterable[str],
-        mods: list[list[str]],
-        *,
-        jump_node: Optional[Node] = None,
-        banned: list[str] = []
+        self, data: Iterable[str], mods: list[list[str]], *, jump_node: Optional[Node] = None, banned: list[str] = []
     ) -> Response:
-
         def __check_leading_mod(name: str, position: int, args_count: int, args_limit: int = 0) -> None:
             if position:
                 raise FabricException(f'Incorrect position of "{name}".')
@@ -470,7 +447,7 @@ class JunOSContext(Context):
             arg = args.popleft()
             if arg in self.keywords['show']:
                 if self.__cursor['name'] == 'root':
-                    return AlertResponse.error('You can\'t do a negative lookahead from the top.')
+                    return AlertResponse.error("You can't do a negative lookahead from the top.")
                 temp = self.__cursor
                 self.__cursor = self.__cursor['parent']
                 result = self.command_show(args, mods)

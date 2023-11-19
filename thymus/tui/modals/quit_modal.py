@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
 
 class QuitApp(ModalScreen):
+    app: TThymus
+
     def compose(self) -> ComposeResult:
         with Grid(id='qs-dialog'):
             yield Label('Are you sure you want to quit [b]Thymus[/b]?', id='qs-question')
@@ -34,6 +36,7 @@ class QuitApp(ModalScreen):
     def cancel(self) -> None:
         self.app.pop_screen()
 
+
 class QuitScreen(ModalScreen):
     app: TThymus
 
@@ -42,7 +45,7 @@ class QuitScreen(ModalScreen):
         screen: WorkingScreen,
         name: Optional[str] = None,
         id: Optional[str] = None,
-        classes: Optional[str] = None
+        classes: Optional[str] = None,
     ) -> None:
         super().__init__(name, id, classes)
         self.screen_to_quit: WorkingScreen = screen
@@ -65,7 +68,8 @@ class QuitScreen(ModalScreen):
         if self.screen_to_quit.name in self.app.working_screens:
             self.app.working_screens.remove(self.screen_to_quit.name)
         self.app.uninstall_screen(self.screen_to_quit)
-        self.screen_to_quit.context.free()
+        if self.screen_to_quit.context:
+            self.screen_to_quit.context.free()
 
     @on(Button.Pressed, '#qs-cancel')
     def cancel(self) -> None:

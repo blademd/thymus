@@ -18,11 +18,7 @@ class ErrorScreen(ModalScreen):
     ]
 
     def __init__(
-        self,
-        err_msg: str,
-        name: Optional[str] = None,
-        id: Optional[str] = None,
-        classes: Optional[str] = None
+        self, err_msg: str, name: Optional[str] = None, id: Optional[str] = None, classes: Optional[str] = None
     ) -> None:
         super().__init__(name, id, classes)
         self.err_msg = err_msg

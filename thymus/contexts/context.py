@@ -7,7 +7,7 @@ import os
 
 from functools import reduce
 from collections import deque
-from typing import Any
+from typing import Any, Optional
 from logging import Logger, getLogger
 from abc import ABC, abstractmethod
 
@@ -26,7 +26,7 @@ CMD_LOG_LIMIT = 30
 
 
 class Context(ABC):
-    __slots__: tuple[str, ...] = (
+    __slots__ = (
         '__name',
         '__content',
         '__encoding',
@@ -138,12 +138,12 @@ class Context(ABC):
         *,
         encoding: str,
         settings: dict[str, str | int],
-        logger: Logger
+        logger: Optional[Logger] = None,
     ) -> None:
         self.__name = name
         self.__content = content
         self.__encoding = encoding
-        self.__logger = logger if logger else getLogger()
+        self.__logger = logger if logger else getLogger(__name__)
         self.__spaces = 2
         self.apply_settings(settings)
         self.__commands_log: deque[str] = deque()
@@ -224,9 +224,7 @@ class Context(ABC):
         return AlertResponse.success(f'The "set {command}" was successfully modified.')
 
     def mod_filter(
-        self,
-        data: Iterator[str] | Generator[str | Exception, None, None],
-        args: list[str]
+        self, data: Iterator[str] | Generator[str | Exception, None, None], args: list[str]
     ) -> Generator[str | Exception, None, None]:
         if not data or len(args) != 1:
             yield FabricException('Incorrect arguments for "filter".')
@@ -250,9 +248,7 @@ class Context(ABC):
                 yield FabricException()
 
     def mod_save(
-        self,
-        data: Iterator[str] | Generator[str | Exception, None, None],
-        args: list[str]
+        self, data: Iterator[str] | Generator[str | Exception, None, None], args: list[str]
     ) -> Generator[str | Exception, None, None]:
         # terminating modificator
         if len(args) == 1 and data:
@@ -280,9 +276,7 @@ class Context(ABC):
             yield FabricException('Incorrect arguments for "save".')
 
     def mod_count(
-        self,
-        data: Iterator[str] | Generator[str | Exception, None, None],
-        args: list[str]
+        self, data: Iterator[str] | Generator[str | Exception, None, None], args: list[str]
     ) -> Generator[str | Exception, None, None]:
         # terminating modificator
         if args:
@@ -306,7 +300,7 @@ class Context(ABC):
             args = reduce(  # type: ignore
                 lambda acc, x: acc[:-1] + [acc[-1] + [x]] if x != '|' else acc + [[]],  # type: ignore
                 shlex.split(value),
-                [[]]
+                [[]],
             )
             head = deque(args[0])  # the line before a possible pipe symbol
             command = head.popleft()
@@ -336,6 +330,7 @@ class Context(ABC):
     @abstractmethod
     def get_virtual_from(self, value: str) -> str:
         raise NotImplementedError
+
 
 class FabricException(Exception):
     pass
