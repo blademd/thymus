@@ -26,6 +26,7 @@ from .. import (
     SAVES_DIR,
     SCREENS_DIR,
     WRAPPER_DIR,
+    NET_TIMEOUT_LIMIT,
 )
 from ..responses import Response, SettingsResponse
 from .platform import (
@@ -66,6 +67,7 @@ class AppSettings:
         'sidebar_strict_on_tab': 'on',
         'open_dialog_platform': 'junos',
         'default_folder': os.path.join(WRAPPER_DIR, SAVES_DIR),
+        'network_timeout': 15,
     }
     current_settings: dict[str, str | int] = {}
 
@@ -277,6 +279,10 @@ class AppSettings:
             path = os.path.expanduser(str(value))
             if not os.path.exists(path) or not os.path.isdir(path):
                 raise Exception
+        elif key == 'network_timeout':
+            value = int(value)
+            if value <= 0 or value > NET_TIMEOUT_LIMIT:
+                raise
         else:
             self._logger.warning(f'Unknown global attribute: {key}. Ignored.')
         return value
@@ -321,6 +327,7 @@ class AppSettings:
             return SettingsResponse.error('Incomplete global command.')
         subcommand = parts[1]
         if subcommand == 'show':
+            # GLOBALS
             if len(parts) > 4:
                 return SettingsResponse.error('Too many arguments for "global show" command.')
             arg = parts[2]
@@ -332,26 +339,19 @@ class AppSettings:
                 for theme in get_all_styles():
                     themes_result.append(f'{theme}*' if theme == self.current_settings['theme'] else theme)
                 return SettingsResponse.success(themes_result)
-            elif arg == 'open_dialog_platform':
+            elif arg in (
+                'open_dialog_platform',
+                'filename_len',
+                'sidebar_limit',
+                'sidebar_strict_on_tab',
+                'night_mode',
+                'default_folder',
+                'network_timeout',
+            ):
                 if len(parts) == 4:
                     return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
-                platf_result = self.current_settings[arg]
-                return SettingsResponse.success(str(platf_result))
-            elif arg in ('filename_len', 'sidebar_limit'):
-                if len(parts) == 4:
-                    return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
-                num_result = self.current_settings[arg]
-                return SettingsResponse.success(str(num_result))
-            elif arg in ('sidebar_strict_on_tab', 'night_mode'):
-                if len(parts) == 4:
-                    return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
-                bool_result = self.current_settings[arg]
-                return SettingsResponse.success(str(bool_result))
-            elif arg == 'default_folder':
-                if len(parts) == 4:
-                    return SettingsResponse.error(f'Too many arguments for "global show {arg}" command.')
-                df_result = self.current_settings[arg]
-                return SettingsResponse.success(str(df_result))
+                return SettingsResponse.success(str(self.current_settings[arg]))
+            # PLATFORMS FROM HERE
             elif arg in self._platforms:
                 if len(parts) == 4:
                     subarg = parts[3]
@@ -365,19 +365,16 @@ class AppSettings:
                         )
                 else:
                     if self._is_alert:
-                        return SettingsResponse.error('These settings are default. App started abnormally.')
-                    if not self._platforms[arg]:
-                        return SettingsResponse.success(
-                            iter(f'{k}: {v}' for k, v in self._platforms[arg].settings.items())
-                        )
+                        return SettingsResponse.error('All settings are default. Thymus started abnormally.')
                     return SettingsResponse.success(
-                        iter(f'{k}: {v}' for k, v in self._platforms[arg].settings.items())
+                        iter(f'{k}: {v}' for k, v in self._platforms[arg].current_settings.items())
                     )
             else:
                 return SettingsResponse.error(f'Unknown argument for "global show" command: {arg}.')
         elif subcommand == 'set':
+            # GLOBALS
             if self._is_alert:
-                return SettingsResponse.error('The settings system is in read-only mode. App started abnormally.')
+                return SettingsResponse.error('System in read-only mode. Thymus started abnormally.')
             if len(parts) < 4:
                 return SettingsResponse.error('Incomplete "global set" command.')
             arg = parts[2]
@@ -427,6 +424,16 @@ class AppSettings:
                 self.current_settings[arg] = value
                 self.save_config()
                 return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')
+            elif arg == 'network_timeout':
+                if len(parts) > 4:
+                    return SettingsResponse.error('Too many arguments for "global set" command.')
+                value = parts[3]
+                if not value.isdigit() or int(value) <= 0 or int(value) > NET_TIMEOUT_LIMIT:
+                    return SettingsResponse.error(f'Value must be in (0; {NET_TIMEOUT_LIMIT}].')
+                self.current_settings[arg] = int(value)
+                self.save_config()
+                return SettingsResponse.success(f'The "{arg}" was changed to: {value}.')
+            # PLATFORMS FROM HERE
             elif arg in self._platforms:
                 if len(parts) != 5:
                     return SettingsResponse.error(f'Incorrent number of arguments for "global set {arg}" command.')

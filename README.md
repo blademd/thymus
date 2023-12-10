@@ -1,5 +1,5 @@
 
-![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/211341de-f510-4f00-bb98-c1da7b01bb7d)
+![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/8c790c6a-7d11-4cd6-8283-52cf29e8472e)
 
 
 # Thymus

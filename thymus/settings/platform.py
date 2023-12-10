@@ -20,9 +20,10 @@ class Platform(ABC):
     current_settings: dict[str, str | int] = {}
     full_name = ''
     short_name = ''
-    show_command = ''
-    netmiko_ssh_class = ''
-    netmiko_telnet_class = ''
+    device_type = ''
+    # show_command = ''
+    # netmiko_ssh_class = ''
+    # netmiko_telnet_class = ''
 
     def __init__(self, logger: logging.Logger) -> None:
         self._logger = logger
@@ -38,11 +39,12 @@ class JunosPlatform(Platform):
         'spaces': 2,
     }
     context: type[Context] = JunOSContext
-    show_command = 'show configuration | display inheritance no-comments'
+    # show_command = 'show configuration | display inheritance no-comments'
     full_name = 'Juniper JunOS'
     short_name = 'JunOS'
-    netmiko_ssh_class = 'juniper_junos'
-    netmiko_telnet_class = 'juniper_junos_telnet'
+    device_type = 'juniper_junos'
+    # netmiko_ssh_class = 'juniper_junos'
+    # netmiko_telnet_class = 'juniper_junos_telnet'
 
     def validate(self, key: str, value: str | int) -> str | int:
         if key == 'spaces':
@@ -65,9 +67,10 @@ class IOSPlatform(Platform):
     context: type[Context] = IOSContext
     full_name = 'Cisco IOS'
     short_name = 'IOS'
-    show_command = 'show running-config'
-    netmiko_ssh_class = 'cisco_ios'
-    netmiko_telnet_class = 'cisco_ios_telnet'
+    device_type = 'cisco_ios'
+    # show_command = 'show running-config'
+    # netmiko_ssh_class = 'cisco_ios'
+    # netmiko_telnet_class = 'cisco_ios_telnet'
 
     def validate(self, key: str, value: str | int) -> str | int:
         if key == 'spaces':
@@ -92,9 +95,10 @@ class NXOSPlatform(Platform):
     context: type[Context] = NXOSContext
     full_name = 'Cisco NX-OS'
     short_name = 'NXOS'
-    show_command = 'show running-config'
-    netmiko_ssh_class = 'cisco_nxos'
-    netmiko_telnet_class = 'cisco_ios_telnet'
+    device_type = 'cisco_nxos'
+    # show_command = 'show running-config'
+    # netmiko_ssh_class = 'cisco_nxos'
+    # netmiko_telnet_class = 'cisco_ios_telnet'
 
     def validate(self, key: str, value: str | int) -> str | int:
         if key == 'spaces':
@@ -120,9 +124,10 @@ class EOSPlatform(Platform):
     context: type[Context] = EOSContext
     full_name = 'Arista EOS'
     short_name = 'EOS'
-    show_command = 'show running-config'
-    netmiko_ssh_class = 'arista_eos'
-    netmiko_telnet_class = 'arista_eos_telnet'
+    device_type = 'arista_eos'
+    # show_command = 'show running-config'
+    # netmiko_ssh_class = 'arista_eos'
+    # netmiko_telnet_class = 'arista_eos_telnet'
 
     def validate(self, key: str, value: str | int) -> str | int:
         if key == 'spaces':

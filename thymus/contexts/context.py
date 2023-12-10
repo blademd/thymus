@@ -27,13 +27,13 @@ CMD_LOG_LIMIT = 30
 
 class Context(ABC):
     __slots__ = (
-        '__name',
-        '__content',
-        '__encoding',
-        '__spaces',
-        '__logger',
-        '__commands_log',
-        '__commands_index',
+        '_name',
+        '_content',
+        '_encoding',
+        '_spaces',
+        '_logger',
+        '_commands_log',
+        '_commands_index',
     )
     __names_cache: list[tuple[type[Context], str]] = []
     delimiter: str = '^'
@@ -64,7 +64,7 @@ class Context(ABC):
 
     @property
     def name(self) -> str:
-        return self.__name
+        return self._name
 
     @name.setter
     def name(self, value: str) -> None:
@@ -76,27 +76,27 @@ class Context(ABC):
             self.__names_cache.append((type(self), value))
         else:
             raise ValueError(f'The name "{value}" is already set.')
-        self.__name = value
+        self._name = value
 
     @property
     def encoding(self) -> str:
-        return self.__encoding
+        return self._encoding
 
     @encoding.setter
     def encoding(self, value: str) -> None:
         try:
             'schlop'.encode(value)
-            self.__encoding = value
+            self._encoding = value
         except LookupError:
             raise ValueError(f'"{value}" is not a correct encoding.')
 
     @property
     def content(self) -> list[str]:
-        return self.__content
+        return self._content
 
     @property
     def spaces(self) -> int:
-        return self.__spaces
+        return self._spaces
 
     @spaces.setter
     def spaces(self, value: int | str) -> None:
@@ -109,7 +109,7 @@ class Context(ABC):
             raise TypeError('Spaces type must be int or str (digital).')
         if tval not in (1, 2, 4):
             raise ValueError('Spaces number can be 1, 2, 4.')
-        self.__spaces = tval
+        self._spaces = tval
 
     @property
     @abstractmethod
@@ -118,13 +118,13 @@ class Context(ABC):
 
     @property
     def logger(self) -> Logger:
-        return self.__logger
+        return self._logger
 
     @logger.setter
     def logger(self, value: Logger) -> None:
         if type(value) is not Logger:
             raise ValueError('Incorrect type of a logger.')
-        self.__logger = value
+        self._logger = value
 
     @property
     @abstractmethod
@@ -140,18 +140,18 @@ class Context(ABC):
         settings: dict[str, str | int],
         logger: Optional[Logger] = None,
     ) -> None:
-        self.__name = name
-        self.__content = content
-        self.__encoding = encoding
-        self.__logger = logger if logger else getLogger(__name__)
-        self.__spaces = 2
+        self._name = name
+        self._content = content
+        self._encoding = encoding
+        self._logger = logger if logger else getLogger(__name__)
+        self._spaces = 2
         self.apply_settings(settings)
-        self.__commands_log: deque[str] = deque()
-        self.__commands_index = -1
+        self._commands_log: deque[str] = deque()
+        self._commands_index = -1
 
     def free(self) -> None:
-        if (type(self), self.__name) in self.__names_cache:
-            self.__names_cache.remove((type(self), self.__name))
+        if (type(self), self._name) in self.__names_cache:
+            self.__names_cache.remove((type(self), self._name))
 
     def apply_settings(self, settings: dict[str, str | int]) -> None:
         for k, v in settings.items():
@@ -160,34 +160,34 @@ class Context(ABC):
                     raise TypeError(f'A value for the key "{k}" has a wrong type: {type(v)}.')
                 setattr(self, k, v)
             except Exception as err:
-                self.__logger.error(f'{err}')
+                self._logger.error(f'{err}')
 
     def add_input_to_log(self, input: str) -> None:
         if not input:
             return
-        if input in self.__commands_log:
+        if input in self._commands_log:
             return
-        if len(self.__commands_log) == CMD_LOG_LIMIT:
-            self.__commands_log.popleft()
-        self.__commands_log.append(input)
-        self.__commands_index = len(self.__commands_log) - 1
+        if len(self._commands_log) == CMD_LOG_LIMIT:
+            self._commands_log.popleft()
+        self._commands_log.append(input)
+        self._commands_index = len(self._commands_log) - 1
 
     def get_input_from_log(self, *, forward: bool = True) -> str:
         result = ''
-        if not self.__commands_log:
+        if not self._commands_log:
             return ''
         if forward:
-            result = self.__commands_log[self.__commands_index]
-            if not self.__commands_index:
-                self.__commands_index = len(self.__commands_log) - 1
+            result = self._commands_log[self._commands_index]
+            if not self._commands_index:
+                self._commands_index = len(self._commands_log) - 1
             else:
-                self.__commands_index -= 1
+                self._commands_index -= 1
         else:
-            if self.__commands_index >= len(self.__commands_log) - 1:
-                self.__commands_index = 0
+            if self._commands_index >= len(self._commands_log) - 1:
+                self._commands_index = 0
             else:
-                self.__commands_index += 1
-            result = self.__commands_log[self.__commands_index]
+                self._commands_index += 1
+            result = self._commands_log[self._commands_index]
         return result
 
     @abstractmethod

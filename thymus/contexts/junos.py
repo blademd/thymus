@@ -45,23 +45,23 @@ if TYPE_CHECKING:
 
 class JunOSContext(Context):
     __slots__: tuple[str, ...] = (
-        '__tree',
-        '__cursor',
-        '__virtual_cursor',
+        '_tree',
+        '_cursor',
+        '_virtual_cursor',
     )
     __store: list[JunOSContext] = []
     lexer: type[JunosLexer] = JunosLexer
 
     @property
     def prompt(self) -> str:
-        if self.__cursor['name'] == 'root':
+        if self._cursor['name'] == 'root':
             return ''
         else:
-            return self.__cursor['path']
+            return self._cursor['path']
 
     @property
     def tree(self) -> Root:
-        return self.__tree
+        return self._tree
 
     @property
     def nos_type(self) -> str:
@@ -71,12 +71,12 @@ class JunOSContext(Context):
         self, name: str, content: list[str], *, encoding: str, settings: dict[str, str | int], logger: Logger
     ) -> None:
         super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
-        self.__tree: Root = construct_tree(self.content, self.delimiter)
-        if not self.__tree or not self.__tree.get('children'):
+        self._tree: Root = construct_tree(self.content, self.delimiter)
+        if not self._tree or not self._tree.get('children'):
             raise Exception(f'{self.nos_type}. Impossible to build a tree.')
         self.__store.append(self)
-        self.__cursor: Root | Node = self.__tree
-        self.__virtual_cursor: Root | Node = self.__tree
+        self._cursor: Root | Node = self._tree
+        self._virtual_cursor: Root | Node = self._tree
         if 'match' not in self.keywords['filter']:
             self.keywords['filter'].append('match')
         if 'wc_filter' not in self.keywords['wildcard']:
@@ -91,13 +91,12 @@ class JunOSContext(Context):
         super().free()
 
     def apply_settings(self, settings: dict[str, str | int]) -> None:
-        self_name = self.__class__.__name__
-        if hasattr(self, f'_{self_name}__tree') and self.__tree:
-            self.__logger.debug('Trying to apply settings with a completed tree.')
+        if hasattr(self, '_tree') and self._tree:
+            self.logger.debug('Trying to apply settings with a completed tree.')
             return
         super().apply_settings(settings)
 
-    def __update_virtual_cursor(self, parts: deque[str]) -> Generator[str, None, None]:
+    def _update_virtual_cursor(self, parts: deque[str]) -> Generator[str, None, None]:
         def get_heads(node: Root | Node, comp: str) -> Generator[str, None, None]:
             for child in node['children']:
                 name = child['name'].lower()
@@ -106,38 +105,38 @@ class JunOSContext(Context):
                 if name.startswith(comp):
                     yield child['name']
 
-        if not parts or not self.__virtual_cursor['children']:
+        if not parts or not self._virtual_cursor['children']:
             return
         head = parts.popleft()
         if head == '|':
             # enlist all possible sections
-            yield from map(lambda x: x['name'], self.__virtual_cursor['children'])
+            yield from map(lambda x: x['name'], self._virtual_cursor['children'])
             return
-        for child in self.__virtual_cursor['children']:
+        for child in self._virtual_cursor['children']:
             name = child['name']
             name = name.lower()
             if name.startswith('inactive: '):
                 name = name.replace('inactive: ', '')
             if name == head:
-                self.__virtual_cursor = child
+                self._virtual_cursor = child
                 if not parts:
                     # nothing left to check in the path
                     # return all encounters
                     yield from get_heads(child['parent'], head)
                 else:
-                    yield from self.__update_virtual_cursor(parts)
+                    yield from self._update_virtual_cursor(parts)
                 return  # we have found all encounters at this stage and can leave
         # no encounters have been found
         if parts:
             # let's see if we can find a doubled match
             extra = parts.popleft()
             parts.appendleft(f'{head} {extra}')
-            yield from self.__update_virtual_cursor(parts)
+            yield from self._update_virtual_cursor(parts)
         else:
             # showing all sections that names start with the head
-            yield from get_heads(self.__virtual_cursor, head)
+            yield from get_heads(self._virtual_cursor, head)
 
-    def __prepand_nop(self, data: Iterable[str]) -> Generator[str | Exception, None, None]:
+    def _prepand_nop(self, data: Iterable[str]) -> Generator[str | Exception, None, None]:
         """
         This method simply adds a blank line to a head of the stream. If the stream is not lazy, it also converts it.
         The blank line is then eaten by __process_fabric method or __mod methods. Final stream does not contain it.
@@ -155,17 +154,17 @@ class JunOSContext(Context):
         parts = value.split()
         if parts[0] in self.keywords['top']:
             if len(parts) > 2 and (parts[1] in self.keywords['show'] or parts[1] in self.keywords['go']):
-                self.__virtual_cursor = self.__tree
-                yield from self.__update_virtual_cursor(deque(parts[2:]))
+                self._virtual_cursor = self._tree
+                yield from self._update_virtual_cursor(deque(parts[2:]))
         elif parts[0] in self.keywords['up']:
             if len(parts) > 2 and (parts[1] in self.keywords['show'] or parts[1] in self.keywords['go']):
-                if self.__cursor['name'] != 'root':
-                    self.__virtual_cursor = self.__cursor['parent']
-                yield from self.__update_virtual_cursor(deque(parts[2:]))
+                if self._cursor['name'] != 'root':
+                    self._virtual_cursor = self._cursor['parent']
+                yield from self._update_virtual_cursor(deque(parts[2:]))
         elif parts[0] in self.keywords['show'] or parts[0] in self.keywords['go']:
             if len(parts) != 1:
-                self.__virtual_cursor = self.__cursor
-                yield from self.__update_virtual_cursor(deque(parts[1:]))
+                self._virtual_cursor = self._cursor
+                yield from self._update_virtual_cursor(deque(parts[1:]))
 
     def get_virtual_from(self, value: str) -> str:
         value = value.lower()
@@ -184,13 +183,13 @@ class JunOSContext(Context):
         if parts[0] not in self.keywords['show'] and parts[0] not in self.keywords['go']:
             return ''
         new_value = ' '.join(parts[1:])
-        if self.__virtual_cursor['name'] == 'root':
+        if self._virtual_cursor['name'] == 'root':
             return new_value
-        path = self.__virtual_cursor['path']
+        path = self._virtual_cursor['path']
         path = path.replace('inactive: ', '')
-        rpath = self.__cursor['path'] if self.__cursor['name'] != 'root' else ''
-        if not first and self.__cursor['name'] != 'root':
-            path = path.replace(self.__cursor['path'], '', 1)
+        rpath = self._cursor['path'] if self._cursor['name'] != 'root' else ''
+        if not first and self._cursor['name'] != 'root':
+            path = path.replace(self._cursor['path'], '', 1)
         spath = path.replace(self.delimiter, ' ')
         spath = spath.strip().lower()
         if first == 'up':
@@ -262,7 +261,7 @@ class JunOSContext(Context):
             path = deque(jump_node['path'].split(self.delimiter))
             peer = search_node(path, remote_context.tree)
         else:
-            target = self.__cursor
+            target = self._cursor
             if target['name'] != 'root':
                 path = deque(target['path'].split(self.delimiter))
                 peer = search_node(path, remote_context.tree)
@@ -277,20 +276,20 @@ class JunOSContext(Context):
         yield from draw_diff_tree(tree, tree['name'])
 
     def mod_inactive(self, jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
-        node = self.__cursor if not jump_node else jump_node
+        node = self._cursor if not jump_node else jump_node
         tree = search_inactives(node)
         yield '\n'
         yield from draw_inactive_tree(tree, tree['name'])
 
     def mod_stubs(self, jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
-        node = self.__cursor if not jump_node else jump_node
+        node = self._cursor if not jump_node else jump_node
         if not node['stubs']:
             yield FabricException('No stubs at this level.')
         yield '\n'
         yield from node['stubs']
 
     def mod_sections(self, jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
-        node = self.__cursor if not jump_node else jump_node
+        node = self._cursor if not jump_node else jump_node
         if not node['children']:
             yield FabricException('No sections at this level.')
         yield '\n'
@@ -310,7 +309,7 @@ class JunOSContext(Context):
 
         if len(args) != 1:
             yield FabricException('There must be one argument for "contains".')
-        node = self.__cursor if not jump_node else jump_node
+        node = self._cursor if not jump_node else jump_node
         if not node['children']:
             yield FabricException('No sections at this level.')
         try:
@@ -320,17 +319,17 @@ class JunOSContext(Context):
         yield '\n'
         yield from lookup_child(node, node['path'] if 'path' in node else '')
 
-    def __process_fabric(
+    def _process_fabric(
         self, data: Iterable[str], mods: list[list[str]], *, jump_node: Optional[Node] = None, banned: list[str] = []
     ) -> Response:
-        def __check_leading_mod(name: str, position: int, args_count: int, args_limit: int = 0) -> None:
+        def check_leading_mod(name: str, position: int, args_count: int, args_limit: int = 0) -> None:
             if position:
                 raise FabricException(f'Incorrect position of "{name}".')
             if args_count != args_limit:
                 raise FabricException(f'Incorrect number of arguments for "{name}". Must be {args_limit}.')
 
         is_flat_out: bool = True
-        recol_data = self.__prepand_nop(data)
+        recol_data = self._prepand_nop(data)
         try:
             for number, elem in enumerate(mods):
                 command = elem[0]
@@ -349,20 +348,20 @@ class JunOSContext(Context):
                     recol_data = self.mod_count(recol_data, elem[1:])
                     break
                 elif command in self.keywords['diff']:
-                    __check_leading_mod(command, number, len(elem[1:]), 1)
+                    check_leading_mod(command, number, len(elem[1:]), 1)
                     recol_data = self.mod_diff(elem[1:], jump_node)
                 elif command in self.keywords['inactive']:
-                    __check_leading_mod(command, number, len(elem[1:]))
+                    check_leading_mod(command, number, len(elem[1:]))
                     recol_data = self.mod_inactive(jump_node)
                     is_flat_out = False
                 elif command in self.keywords['stubs']:
-                    __check_leading_mod(command, number, len(elem[1:]))
+                    check_leading_mod(command, number, len(elem[1:]))
                     recol_data = self.mod_stubs(jump_node)
                 elif command in self.keywords['sections']:
-                    __check_leading_mod(command, number, len(elem[1:]))
+                    check_leading_mod(command, number, len(elem[1:]))
                     recol_data = self.mod_sections(jump_node)
                 elif command in self.keywords['contains']:
-                    __check_leading_mod(command, number, len(elem[1:]), 1)
+                    check_leading_mod(command, number, len(elem[1:]), 1)
                     recol_data = self.mod_contains(elem[1:], jump_node)
                 else:
                     raise FabricException(f'Unknown modificator "{command}".')
@@ -378,6 +377,9 @@ class JunOSContext(Context):
             return AlertResponse.error(f'Unknown error from the fabric #001: {err}')
         except StopIteration:
             return AlertResponse.error('Unknown error from the fabric #002.')
+        except Exception as err:
+            self.logger.error(str(err))
+            return AlertResponse.error('Unknwown error. See the log.')
 
     def command_show(self, args: deque[str], mods: list[list[str]]) -> Response:
         if args:
@@ -385,60 +387,60 @@ class JunOSContext(Context):
             if first_arg in self.keywords['version']:
                 if len(args) > 1:
                     return AlertResponse.error('Too many arguments for "version".')
-                if self.__tree['version']:
-                    return ContextResponse.success(self.__tree['version'])
+                if self._tree['version']:
+                    return ContextResponse.success(self._tree['version'])
                 return AlertResponse.error('No version has been found.')
             else:
-                if node := search_node(args, self.__cursor):
+                if node := search_node(args, self._cursor):
                     try:
                         data = lazy_parser(self.content, node['path'], self.delimiter)
                         next(data)
                         if mods:
-                            return self.__process_fabric(data, mods, jump_node=node)
+                            return self._process_fabric(data, mods, jump_node=node)
                         return ContextResponse.success(lazy_provide_config(data, block=' ' * self.spaces))
                     except Exception as err:
                         return AlertResponse.error(f'{err}')
                 return AlertResponse.error('This path is not correct.')
         else:
             data = iter(self.content)
-            if self.__cursor['name'] != 'root':
+            if self._cursor['name'] != 'root':
                 try:
-                    data = lazy_parser(data, self.__cursor['path'], self.delimiter)
+                    data = lazy_parser(data, self._cursor['path'], self.delimiter)
                     next(data)
                 except Exception as err:
                     return AlertResponse.error(f'{err}')
             if mods:
-                return self.__process_fabric(data, mods)
+                return self._process_fabric(data, mods)
             return ContextResponse.success(lazy_provide_config(data, block=' ' * self.spaces))
 
     def command_go(self, args: deque[str]) -> Response:
         if not args:
             return AlertResponse.error('Not enough arguments for "go".')
-        if node := search_node(args, self.__cursor):
-            self.__cursor = node
+        if node := search_node(args, self._cursor):
+            self._cursor = node
             return AlertResponse.success()
         return AlertResponse.error('This path is not correct.')
 
     def command_top(self, args: deque[str], mods: list[list[str]]) -> Response:
         if args:
             sub_command = args.popleft()
-            temp = self.__cursor
-            self.__cursor = self.__tree
+            temp = self._cursor
+            self._cursor = self._tree
             if sub_command in self.keywords['show']:
                 result = self.command_show(args, mods)
-                self.__cursor = temp
+                self._cursor = temp
                 return result
             elif sub_command in self.keywords['go']:
                 result = self.command_go(args)
                 if not result.is_ok:
-                    self.__cursor = temp
+                    self._cursor = temp
                     return AlertResponse.error(result.value)
                 return AlertResponse.success()
             else:
-                self.__cursor = temp
+                self._cursor = temp
                 return AlertResponse.error(f'Incorrect sub-command for "top": {sub_command}.')
         else:
-            self.__cursor = self.__tree
+            self._cursor = self._tree
             return AlertResponse.success()
 
     def command_up(self, args: deque[str], mods: list[list[str]]) -> Response:
@@ -446,12 +448,12 @@ class JunOSContext(Context):
         if args:
             arg = args.popleft()
             if arg in self.keywords['show']:
-                if self.__cursor['name'] == 'root':
+                if self._cursor['name'] == 'root':
                     return AlertResponse.error("You can't do a negative lookahead from the top.")
-                temp = self.__cursor
-                self.__cursor = self.__cursor['parent']
+                temp = self._cursor
+                self._cursor = self._cursor['parent']
                 result = self.command_show(args, mods)
-                self.__cursor = temp
+                self._cursor = temp
                 return result
             elif arg.isdigit():
                 if len(args) != 1:
@@ -459,13 +461,13 @@ class JunOSContext(Context):
                 steps = min(int(arg), UP_LIMIT)
             else:
                 return AlertResponse.error(f'Incorrect argument for "up": {arg}.')
-        if self.__cursor['name'] == 'root':
+        if self._cursor['name'] == 'root':
             return AlertResponse.success()
-        current = self.__cursor
+        current = self._cursor
         while steps:
             if current['name'] == 'root':
                 break
             current = current['parent']
             steps -= 1
-        self.__cursor = current
+        self._cursor = current
         return AlertResponse.success()

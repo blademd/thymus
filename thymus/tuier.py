@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from typing import TYPE_CHECKING, Optional
 
 from textual.app import App, ComposeResult
@@ -14,6 +16,7 @@ from . import __version__ as app_ver
 from . import (
     WELCOME_TEXT,
     WELCOME_TEXT_LEN,
+    WRAPPER_DIR,
     SCREENS_DIR,
 )
 from .settings import AppSettings
@@ -23,8 +26,6 @@ from .tui.modals import (
     ContextListScreen,
     LogsScreen,
 )
-
-import logging
 
 if TYPE_CHECKING:
     from textual.events import Resize
@@ -89,7 +90,11 @@ class TThymus(App):
             self.settings.process_command('global set night_mode off')
 
     def action_make_screenshot(self) -> None:
+        import os
+
         try:
-            self.save_screenshot(path=SCREENS_DIR)
+            wrapper_path = os.path.expanduser(WRAPPER_DIR)
+            screens_path = os.path.join(wrapper_path, SCREENS_DIR)
+            self.save_screenshot(path=screens_path)
         except Exception as err:
             self.logger.error(f'Cannot save a screenshot: {err}.')

@@ -30,8 +30,12 @@ from textual.widgets import (
 
 from .working_screen import WorkingScreen
 from .modals import ErrorScreen
-from .net_loader import NetLoader
-
+from ..netloader import (
+    create,
+    TimeoutError,
+    DisconnectError,
+    KeyError,
+)
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult
@@ -53,7 +57,7 @@ class OpenDialog(ModalScreen):
     current_path: var[Path] = var(Path.cwd())
     lock: var[bool] = var(False)
 
-    def __get_list_view_value(self, id: str) -> str:
+    def _get_list_view_value(self, id: str) -> str:
         control = self.query_one(id, ListView)
         if not control or not control.highlighted_child or not control.highlighted_child.children:
             return ''
@@ -62,10 +66,10 @@ class OpenDialog(ModalScreen):
             return ''
         return value
 
-    def __open(self, filename: str = '', content: list[str] = []) -> None:
+    def _open(self, filename: str = '', content: list[str] = []) -> None:
         screen_name = str(uuid4())
-        selected_nos = self.__get_list_view_value('#od-nos-switch')
-        selected_encoding = self.__get_list_view_value('#od-encoding-switch')
+        selected_nos = self._get_list_view_value('#od-nos-switch')
+        selected_encoding = self._get_list_view_value('#od-encoding-switch')
         try:
             self.app.install_screen(
                 screen=WorkingScreen(
@@ -100,56 +104,66 @@ class OpenDialog(ModalScreen):
     def open_from_file(self, filename: str) -> None:
         if filename:
             self.app.logger.debug(f'Opening the file: {filename}.')
-            self.__open(filename=filename)
+            self._open(filename=filename)
 
-    def modal_callback(self, err_msg: str) -> None:
-        self.app.push_screen(ErrorScreen(err_msg))
-
-    def freeze_callback(self, is_freeze: bool) -> None:
-        self.query_one('#od-main-container', Horizontal).disabled = is_freeze
-        if is_freeze:
-            self.query_one('#od-nt-loading', LoadingIndicator).styles.display = 'block'
-        else:
-            self.query_one('#od-nt-loading', LoadingIndicator).styles.display = 'none'
-
-    @work(exclusive=True, thread=True)
-    def open_from_network(self) -> None:
+    @work(exclusive=True)
+    async def open_from_network(self) -> None:
         if self.lock:
             return
         self.lock = True
         worker = get_current_worker()
+        main_container_ctrl = self.query_one('#od-main-container', Horizontal)
+        loading_indicator_ctrl = self.query_one('#od-nt-loading', LoadingIndicator)
         hostname_ctrl = self.query_one('#od-nt-host-in', Input)
         port_ctrl = self.query_one('#od-nt-port-in', Input)
         username_ctrl = self.query_one('#od-nt-username-in', Input)
         password_ctrl = self.query_one('#od-nt-password-in', Input)
-        switch_ctrl = self.query_one('#od-net-switch', RadioSet)
+        secret_ctrl = self.query_one('#od-nt-secret-in', Input)
+        proto_switch_ctrl = self.query_one('#od-net-proto-switch', RadioSet)
+        keys_switch_ctrl = self.query_one('#od-net-keys-switch', RadioSet)
         if not worker.is_cancelled:
-            self.app.call_from_thread(self.freeze_callback, True)
+            main_container_ctrl.disabled = True
+            loading_indicator_ctrl.styles.display = 'block'
         try:
-            selected_nos = self.__get_list_view_value('#od-nos-switch')
+            selected_nos = self._get_list_view_value('#od-nos-switch')
             if not selected_nos:
                 raise Exception('Platform is not found.')
             platform = self.app.settings.platforms.get(selected_nos)
             if not platform:
                 raise Exception('Platform is not found.')
-            loader = NetLoader(
-                host=hostname_ctrl.value,
-                port=int(port_ctrl.value),
-                username=username_ctrl.value,
-                password=password_ctrl.value,
-                proto=switch_ctrl.pressed_index,
-                platform=platform,
-            )
+            network_timeout = self.app.settings.current_settings.get('network_timeout')
+            output = ''
+            connect_data = {
+                'device_type': platform.device_type,
+                'protocol': 'ssh' if proto_switch_ctrl.pressed_index == 0 else 'telnet',
+                'host': hostname_ctrl.value,
+                'port': int(port_ctrl.value),
+                'username': username_ctrl.value,
+                'timeout': network_timeout,
+            }
+            if keys_switch_ctrl.pressed_index == 0:
+                connect_data['password'] = password_ctrl.value
+            else:
+                connect_data['passphrase'] = password_ctrl.value
+            if secret_ctrl.value:
+                connect_data['secret'] = secret_ctrl.value
+            async with create(**connect_data, logger=self.app.logger) as conn:
+                output = await conn.fetch_config()
+            data = output.splitlines()
             if not worker.is_cancelled:
-                self.app.logger.debug(f'Opening from a remote host: {hostname_ctrl.value}:{port_ctrl.value}.')
-                self.app.call_from_thread(self.__open, content=loader.data)
+                self.app.logger.debug(f'Opening from {hostname_ctrl.value}:{port_ctrl.value}.')
+                self._open(content=data)
+        except (KeyError, TimeoutError, DisconnectError) as err:
+            if not worker.is_cancelled:
+                self.app.logger.error(str(err))
+                self.app.push_screen(ErrorScreen(str(err)))
         except Exception as err:
-            err_msg = f'Error has occurred during the opening from the network: {err}'
             if not worker.is_cancelled:
-                self.app.logger.error(err_msg)
-                self.app.call_from_thread(self.modal_callback, err_msg)
+                self.app.logger.error(str(err))
+                self.app.push_screen(ErrorScreen('Unknown network error has occurred, check the log.'))
         if not worker.is_cancelled:
-            self.app.call_from_thread(self.freeze_callback, False)
+            main_container_ctrl.disabled = False
+            loading_indicator_ctrl.styles.display = 'none'
         self.lock = False
 
     def compose(self) -> ComposeResult:
@@ -220,7 +234,7 @@ class OpenDialog(ModalScreen):
                             ],
                         )
                     with Horizontal(classes='od-hor-con'):
-                        yield Static('Password:', id='od-label-password', classes='od-labels')
+                        yield Static('Password or passphrase:', id='od-label-password', classes='od-labels')
                         yield Input(
                             password=True,
                             id='od-nt-password-in',
@@ -230,9 +244,22 @@ class OpenDialog(ModalScreen):
                             ],
                         )
                     with Horizontal(classes='od-hor-con'):
-                        with RadioSet(id='od-net-switch'):
+                        yield Static('Secret:', id='od-label-password', classes='od-labels')
+                        yield Input(
+                            password=True,
+                            id='od-nt-secret-in',
+                            classes='od-inputs',
+                            validators=[
+                                Length(minimum=1, maximum=256),
+                            ],
+                        )
+                    with Horizontal(classes='od-hor-con'):
+                        with RadioSet(id='od-net-proto-switch'):
                             yield RadioButton('SSH', value=True)
                             yield RadioButton('Telnet')
+                        with RadioSet(id='od-net-keys-switch'):
+                            yield RadioButton('Password', value=True)
+                            yield RadioButton('Search for keys')
                     with Horizontal(id='od-hor-con-butns', classes='od-hor-con'):
                         yield Button('OPEN', id='od-connect-button', variant='primary')
                         yield LoadingIndicator(id='od-nt-loading', classes='od-disabled')
@@ -277,6 +304,8 @@ class OpenDialog(ModalScreen):
             self.query_one('#od-nt-host-in', Input).focus()
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
+        if event.radio_set.id != 'od-net-proto-switch':
+            return
         port_ctrl = self.query_one('#od-nt-port-in', Input)
         if event.radio_set.pressed_index == 0:
             if not port_ctrl.value or port_ctrl.value == '23' or not port_ctrl.value.isdigit():
@@ -286,8 +315,11 @@ class OpenDialog(ModalScreen):
                 port_ctrl.value = '23'
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
-        if event.item and event.item.children:
-            self.app.settings.process_command(f'global set open_dialog_platform {event.item.children[0].name}')
+        try:
+            if event.item and event.item.children:
+                self.app.settings.process_command(f'global set open_dialog_platform {event.item.children[0].name}')
+        except Exception as err:
+            self.app.logger.error(str(err))
 
     def action_focus(self, target: str) -> None:
         if target == 'platform':

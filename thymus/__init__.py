@@ -1,4 +1,4 @@
-__version__ = '0.1.6-alpha'
+__version__ = '0.1.7-alpha'
 
 CONFIG_PATH = 'settings/'
 CONFIG_NAME = 'thymus.json'
@@ -32,4 +32,5 @@ LOGGING_FILE_MAX_INSTANCES = 5
 LOGGING_BUF_CAP = 65535
 LOGGING_FORMAT = '%(asctime)s %(module)-14s %(levelname)-3s %(message)s'
 N_VALUE_LIMIT = 65535
+NET_TIMEOUT_LIMIT = 300
 CONTEXT_HELP = 'templates/context_help.json'
