@@ -1,5 +1,5 @@
 
-![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/8c790c6a-7d11-4cd6-8283-52cf29e8472e)
+![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/7b68e7bd-0ea1-49fc-9503-e24254d2c014)
 
 
 # Thymus
@@ -20,15 +20,15 @@ Thymus supports:
 
  JunOS context screen
 
- ![thymus_junos_example](https://github.com/blademd/thymus/assets/1499024/e7b0afe9-2b0d-472b-8c6e-098a5fa1dd53)
+ ![thymus_junos_example](https://github.com/blademd/thymus/assets/1499024/de5709b0-44d4-4490-8a5b-c8f59dfb3ff9)
 
  IOS context screen
 
- ![thymus_ios_example](https://github.com/blademd/thymus/assets/1499024/0dfe16c1-2e79-4175-9ca2-fea5882f176b)
+ ![thymus_ios_example](https://github.com/blademd/thymus/assets/1499024/51375ef1-f912-44eb-8432-13855f5d3920)
 
  Compare/diff between two configs (JunOS is just as an example)
 
- ![thymus_junos_compare_example](https://github.com/blademd/thymus/assets/1499024/81b4b4fd-c1cb-4fe8-8e51-f8c435a71025)
+ ![thymus_junos_compare_example](https://github.com/blademd/thymus/assets/1499024/a1f1cbbe-f45b-4830-bd58-fcccddcb79ca)
 
 
 </details>
