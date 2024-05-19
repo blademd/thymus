@@ -18,16 +18,6 @@ from thymus.netloader.exceptions import (
 if TYPE_CHECKING:
     import logging
 
-SSH_KEY_TYPES = (
-    'ed25519_sk',
-    'ecdsa_sk',
-    'ed448',
-    'ed25519',
-    'ecdsa',
-    'rsa',
-    'dsa',
-)
-
 
 def read_keys_and_certs(passphrase: str = '', ignore_encrypted: bool = True) -> Sequence[asyncssh.SSHKeyPair]:
     """
@@ -35,25 +25,30 @@ def read_keys_and_certs(passphrase: str = '', ignore_encrypted: bool = True) -> 
     """
     keys: list[asyncssh.SSHKey] = []
     certs: list[asyncssh.SSHCertificate] = []
+
     for folder in ('~/ssh/', '~/.ssh/'):
         path = os.path.expanduser(folder)
+
         if not os.path.isdir(path):
             continue
+
         for elem in os.listdir(path):
-            for ktype in SSH_KEY_TYPES:
-                if ktype in elem.lower():
-                    try:
-                        if 'pub' in elem.lower():
-                            pub_key = asyncssh.read_public_key(os.path.join(path, elem))
-                            keys.append(pub_key)
-                        elif 'cert' in elem.lower():
+            for ktype, condition in asyncssh.public_key._DEFAULT_KEY_FILES:
+                if not condition:
+                    continue
+
+                try:
+                    if ktype in elem.lower() and '.pub' not in elem.lower():
+                        if '.cert' in elem.lower():
                             cert = asyncssh.read_certificate(os.path.join(path, elem))
                             certs.append(cert)
                         else:
                             p_key = asyncssh.read_private_key(os.path.join(path, elem), passphrase)
                             keys.append(p_key)
-                    except Exception:
-                        pass
+                except asyncssh.KeyEncryptionError as error:
+                    if not ignore_encrypted:
+                        raise error
+
     return asyncssh.load_keypairs(
         keylist=keys, passphrase=passphrase, certlist=certs, ignore_encrypted=ignore_encrypted
     )

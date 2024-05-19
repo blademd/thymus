@@ -1,45 +1,19 @@
 from __future__ import annotations
 
-import sys
 import re
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
+from collections.abc import Iterator, Iterable
 from collections import deque
-from itertools import chain
-from difflib import Differ
 from copy import copy
+from itertools import chain
 
-if sys.version_info.major == 3 and sys.version_info.minor >= 9:
-    from collections.abc import Generator, Iterable, Iterator
-else:
-    from typing import Generator, Iterable, Iterator
+from thymus_ast import ios  # type: ignore
 
-from thymus_ast.ios import (  # type: ignore
-    Root,
-    Node,
-    construct_tree,
-    analyze_heuristics,
-    lazy_provide_config,
-    search_node,
-    search_h_node,
-)
-
-from .context import (
-    Context,
-    FabricException,
-    UP_LIMIT,
-)
-from ..responses import (
-    Response,
-    ContextResponse,
-    AlertResponse,
-)
-from ..lexers import IOSLexer
-from ..misc import find_common
-
-
-if TYPE_CHECKING:
-    from logging import Logger
+from thymus.contexts import Context, FabricException
+from thymus.lexers import IOSLexer
+from thymus.responses import Response
+from thymus.utils import find_common
 
 
 class IOSContext(Context):
@@ -48,202 +22,244 @@ class IOSContext(Context):
         '_cursor',
         '_virtual_cursor',
         '_virtual_h_cursor',
-        '_is_heuristics',
-        '_is_base_heuristics',
-        '_is_crop',
-        '_is_promisc',
+        '_heuristics',
+        '_base_heuristics',
+        '_crop',
+        '_promisc',
+        '_find_head',
     )
     __store: list[IOSContext] = []
-    lexer: type[IOSLexer] = IOSLexer
+
+    lexer = IOSLexer
+
+    # READ-ONLY PROPERTIES
 
     @property
-    def prompt(self) -> str:
-        if self._cursor.name == 'root':
-            return ''
-        else:
-            return self._cursor.path
-
-    @property
-    def tree(self) -> Root:
+    def tree(self) -> ios.Root:
         return self._tree
 
     @property
-    def nos_type(self) -> str:
-        return 'IOS'
+    def cursor(self) -> ios.Root | ios.Node:
+        return self._cursor
+
+    @property
+    def path(self) -> str:
+        return self._cursor.path
+
+    @property
+    def path_offset(self) -> tuple[int, int]:
+        return self._cursor.begin, self._cursor.end
+
+    # CONFIGURABLE PROPERTIES
 
     @property
     def heuristics(self) -> bool:
-        return self._is_heuristics
+        self._heuristics: bool
+        return self._heuristics
 
     @heuristics.setter
-    def heuristics(self, value: str | int | bool) -> None:
-        if type(value) is bool:
-            self._is_heuristics = value
-        elif type(value) is str:
-            if value in ('0', 'off'):
-                self._is_heuristics = False
-            elif value in ('1', 'on'):
-                if self._is_heuristics and hasattr(self, '_tree') and self._tree:
-                    raise ValueError('The heuristics mode is already active.')
-                self._is_heuristics = True
-                if hasattr(self, '_tree') and self._tree:
-                    analyze_heuristics(self._tree, self._tree.delimiter, self._is_crop)
+    def heuristics(self, value: bool | str) -> None:
+        if type(value) is not bool:
+            if type(value) is str:
+                if value in ('0', 'off'):
+                    value = False
+                elif value in ('1', 'on'):
+                    value = True
+                else:
+                    raise ValueError(f'Incorrect value for "heuristics": {value}.')
             else:
-                raise ValueError(f'Unknown value for heuristics: {value}.')
-        elif type(value) is int:
-            if value == 0:
-                self._is_heuristics = False
-            elif value == 1:
-                if self._is_heuristics:
-                    raise ValueError('The heuristics mode is already active.')
-                self._is_heuristics = True
-                if hasattr(self, '_tree') and self._tree:
-                    analyze_heuristics(self._tree, self._tree.delimiter, self._is_crop)
-            else:
-                raise ValueError(f'Unknown value for heuristics: {value}.')
-        else:
-            raise TypeError(f'Incorrect type for heuristics: {type(value)}.')
+                raise TypeError(f'Incorrect type for "heuristics": {type(value)}.')
+
+        if self.is_built:
+            self._heuristics = value
+            self.build()
+
+        self._heuristics = value
 
     @property
     def base_heuristics(self) -> bool:
-        return self._is_base_heuristics
+        self._base_heuristics: bool
+        return self._base_heuristics
 
     @base_heuristics.setter
-    def base_heuristics(self, value: str | int | bool) -> None:
-        if type(value) is bool:
-            self._is_base_heuristics = value
-        elif type(value) is str:
-            if value in ('0', 'off'):
-                self._is_base_heuristics = False
-            elif value in ('1', 'on'):
-                if self._is_base_heuristics and hasattr(self, '_tree') and self._tree:
-                    raise ValueError('The base heuristics mode is already active.')
-                self._is_base_heuristics = True
+    def base_heuristics(self, value: bool | str) -> None:
+        if type(value) is not bool:
+            if type(value) is str:
+                if value in ('0', 'off'):
+                    value = False
+                elif value in ('1', 'on'):
+                    value = True
+                else:
+                    raise ValueError(f'Incorrect value for "base_heuristics": {value}.')
             else:
-                raise ValueError(f'Unknown value for base heuristics: {value}.')
-        elif type(value) is int:
-            if value == 0:
-                self._is_base_heuristics = False
-            elif value == 1:
-                if self._is_base_heuristics:
-                    raise ValueError('The base heuristics mode is already active.')
-                self._is_base_heuristics = True
-            else:
-                raise ValueError(f'Unknown value for base heuristics: {value}.')
-        else:
-            raise TypeError(f'Incorrect type for base heuristics: {type(value)}.')
-        if hasattr(self, '_tree') and self._tree:
-            self._rebuild_tree()
+                raise TypeError(f'Incorrect type for "base_heuristics": {type(value)}.')
+
+        if self.is_built:
+            self._base_heuristics = value
+            self.build()
+
+        self._base_heuristics = value
 
     @property
     def crop(self) -> bool:
-        return self._is_crop
+        self._crop: bool
+        return self._crop
 
     @crop.setter
-    def crop(self, value: str | int | bool) -> None:
-        if hasattr(self, '_tree') and self._tree and not self._is_heuristics:
-            raise ValueError('The heuristics mode must be present and enabled first.')
-        if type(value) is bool:
-            self._is_crop = value
-        elif type(value) is str:
-            if value in ('0', 'off'):
-                self._is_crop = False
-            elif value in ('1', 'on'):
-                self._is_crop = True
+    def crop(self, value: bool | str) -> None:
+        if type(value) is not bool:
+            if type(value) is str:
+                if value in ('0', 'off'):
+                    value = False
+                elif value in ('1', 'on'):
+                    value = True
+                else:
+                    raise ValueError(f'Incorrect value for "crop": {value}.')
             else:
-                raise ValueError(f'Unknown value for crop: {value}.')
-        elif type(value) is int:
-            if value == 0:
-                self._is_crop = False
-            elif value == 1:
-                self._is_crop = True
-            else:
-                raise ValueError(f'Unknown value for crop: {value}.')
-        else:
-            raise TypeError(f'Incorrect type for crop: {type(value)}.')
-        if hasattr(self, '_tree') and self._tree and self._is_heuristics:
-            self._rebuild_tree()
+                raise TypeError(f'Incorrect type for "crop": {type(value)}.')
+
+        if self.is_built:
+            if not self._heuristics:
+                raise ValueError('The heuristics mode must be enabled first.')
+
+            self._crop = value
+            self.build()
+
+        self._crop = value
 
     @property
     def promisc(self) -> bool:
-        return self._is_promisc
+        self._promisc: bool
+        return self._promisc
 
     @promisc.setter
-    def promisc(self, value: str | int | bool) -> None:
-        if type(value) is bool:
-            self._is_promisc = value
-        elif type(value) is str:
-            if value in ('0', 'off'):
-                self._is_promisc = False
-            elif value in ('1', 'on'):
-                self._is_promisc = True
+    def promisc(self, value: bool | str) -> None:
+        if type(value) is not bool:
+            if type(value) is str:
+                if value in ('0', 'off'):
+                    value = False
+                elif value in ('1', 'on'):
+                    value = True
+                else:
+                    raise ValueError(f'Incorrect value for "promisc": {value}.')
             else:
-                raise ValueError(f'Unknown value for promisc: {value}.')
-        elif type(value) is int:
-            if value == 0:
-                self._is_promisc = False
-            elif value == 1:
-                self._is_promisc = True
+                raise TypeError(f'Incorrect type for "promisc": {type(value)}.')
+
+        if self.is_built:
+            self._promisc = value
+            self.build()
+
+        self._promisc = value
+
+    @property
+    def find_head(self) -> bool:
+        self._find_head: bool
+        return self._find_head
+
+    @find_head.setter
+    def find_head(self, value: bool | str) -> None:
+        if type(value) is not bool:
+            if type(value) is str:
+                if value in ('0', 'off'):
+                    value = False
+                elif value in ('1', 'on'):
+                    value = True
+                else:
+                    raise ValueError(f'Incorrect value for "find_head": {value}.')
             else:
-                raise ValueError(f'Unknown value for promisc: {value}.')
-        else:
-            raise TypeError(f'Incorrect type for promisc: {type(value)}.')
+                raise TypeError(f'Incorrect type for "find_head": {type(value)}.')
+
+        if self.is_built:
+            if not self._promisc:
+                raise ValueError('The promisc mode must be enabled first.')
+
+            self._find_head = value
+            self.build()
+
+        self._find_head = value
 
     def __init__(
-        self, name: str, content: list[str], *, encoding: str, settings: dict[str, str | int], logger: Logger
+        self,
+        context_id: int,
+        name: str,
+        content: list[str],
+        encoding: str,
+        neighbors: list[Context],
+        saves_dir: str,
     ) -> None:
-        self._is_heuristics = False
-        self._is_base_heuristics = True
-        self._is_crop = False
-        self._is_promisc = False
-        super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
-        self._tree: Root = construct_tree(
-            config=self.content,
-            delimiter=self.delimiter,
-            is_heuristics=self._is_heuristics,
-            is_base_heuristics=self._is_base_heuristics,
-            is_crop=self._is_crop,
-            is_promisc=self._is_promisc,
-        )
-        if not self._tree:
-            raise Exception(f'Impossible to build a tree for "{self.nos_type}".')
+        super().__init__(context_id, name, content, encoding, neighbors, saves_dir)
+        self._base_heuristics = True
+        self._heuristics = False
+        self._crop = False
+        self._promisc = False
+        self._find_head = False
         self.__store.append(self)
-        self._cursor: Root | Node = self._tree
-        self._virtual_cursor: Root | Node = self._tree
-        self._virtual_h_cursor: Root | Node = self._tree
-        if 'end' not in self.keywords['top']:
-            self.keywords['top'].append('end')
-        if 'exit' not in self.keywords['up']:
-            self.keywords['up'].append('exit')
-        if 'include' not in self.keywords['filter']:
-            self.keywords['filter'].append('include')
 
-    def _rebuild_tree(self) -> None:
-        self._tree = None
-        self._cursor = None
-        self._tree = construct_tree(
-            config=self.content,
+    def release(self) -> None:
+        if self in self.__store:
+            self.__store.remove(self)
+        return super().release()
+
+    def build(self) -> None:
+        settings = ios.TreeSettings(
+            heuristics=self._heuristics,
+            base_heuristics=self._base_heuristics,
+            crop=self._crop,
+            promisc=self._promisc,
             delimiter=self.delimiter,
-            is_heuristics=self._is_heuristics,
-            is_base_heuristics=self._is_base_heuristics,
-            is_crop=self._is_crop,
-            is_promisc=self._is_promisc,
+            find_head=self._find_head,
         )
-        self._cursor = self._tree
-        self.logger.debug(f'The tree was rebuilt. {self.nos_type}.')
+        tree = ios.construct_tree_second(self._content, settings=settings)
 
-    def _get_node_content(self, node: Root | Node) -> Generator[str, None, None]:
-        return lazy_provide_config(self.content, node, alignment=self.spaces, is_started=True)
+        if not tree:
+            raise Exception('Context was not built.')
 
-    def _prepand_nop(self, data: Iterable[str]) -> Generator[str | Exception, None, None]:
-        """
-        This method simply adds a blank line to a head of the stream. If the stream is not lazy, it also converts it.
-        The blank line is then eaten by _process_fabric method or __mod methods. Final stream does not contain it.
-        """
-        yield '\n'
-        yield from data
+        self._tree = tree
+        self._cursor: ios.Root | ios.Node = tree
+        self._virtual_cursor: ios.Root | ios.Node = tree
+        self._virtual_h_cursor: ios.Root | ios.Node = tree
 
-    def _inspect_children_pair(self, node: Root | Node, parent_path: str) -> Generator[tuple[str, Node], None, None]:
+    # PRIVATE METHODS
+
+    def _update_virtual_cursor(self, parts: deque[str], *, heuristics=False) -> Iterator[str]:
+        # heuristics here is a marker that spots which cursor and its nodes to use
+        if not parts:
+            return
+
+        target = self._virtual_h_cursor.heuristics if heuristics else self._virtual_cursor.children
+        head = parts.popleft()
+        head = head.lower()
+
+        if head == '|':
+            yield from map(lambda node: node.name, target)
+
+        for child in target:
+            # We ignore `is_accessible` flag because the virtual cursors are actually virtual.
+            if child.name.lower() == head:
+                if heuristics:
+                    self._virtual_h_cursor = child
+                else:
+                    self._virtual_cursor = child
+
+                if parts:
+                    yield from self._update_virtual_cursor(parts, heuristics=heuristics)
+                else:
+                    yield from filter(lambda name: name.lower().startswith(head), map(lambda node: node.name, target))
+
+                return
+
+        # no child found
+        # so, try to get all matched then
+        yield from filter(lambda name: name.lower().startswith(head), map(lambda node: node.name, target))
+
+    def _inspect_children_path(self, node: ios.Root | ios.Node, parent_path: str) -> Iterator[str]:
+        for child in node.children:
+            if child.is_accessible:
+                yield child.path.replace(parent_path, '').replace(self.delimiter, ' ').strip()
+            else:
+                yield from self._inspect_children_path(child, parent_path)
+
+    def _inspect_children_pair(self, node: ios.Root | ios.Node, parent_path: str) -> Iterator[tuple[str, ios.Node]]:
         for child in node.children:
             if child.is_accessible:
                 path = child.path.replace(parent_path, '').replace(self.delimiter, ' ').strip()
@@ -251,385 +267,517 @@ class IOSContext(Context):
             else:
                 yield from self._inspect_children_pair(child, parent_path)
 
-    def _inspect_children_path(self, node: Root | Node, parent_path: str) -> Generator[str, None, None]:
-        for child in node.children:
-            if child.is_accessible:
-                yield child.path.replace(parent_path, '').replace(self.delimiter, ' ').strip()
-            else:
-                yield from self._inspect_children_path(child, parent_path)
-
-    def _update_virtual_cursor(self, parts: deque[str], *, is_heuristics: bool = False) -> Generator[str, None, None]:
-        # is_heuristics here is a marker that sports which cursor and its nodes to use
-        target = self._virtual_h_cursor.heuristics if is_heuristics else self._virtual_cursor.children
-        head = parts.popleft()
-        if head == '|':
-            yield from map(lambda x: x.name, target)
-        for child in target:
-            # We ignore `is_accessible` flag because the virtual cursors are actually virtual.
-            if child.name == head:
-                if is_heuristics:
-                    self._virtual_h_cursor = child
-                else:
-                    self._virtual_cursor = child
-                if parts:
-                    yield from self._update_virtual_cursor(parts, is_heuristics=is_heuristics)
-                else:
-                    yield from filter(lambda x: x.lower().startswith(head), map(lambda x: x.name, target))
-                return
-        # a child wasn't found
-        # so we try to get all matches instead
-        yield from filter(lambda x: x.lower().startswith(head), map(lambda x: x.name, target))
-
-    def free(self) -> None:
-        self.__store.remove(self)
-        super().free()
-
-    def apply_settings(self, settings: dict[str, str | int]) -> None:
-        if hasattr(self, '_tree') and self._tree:
-            self.logger.debug('Trying to apply settings with a completed tree.')
-            return
-        super().apply_settings(settings)
-
-    def update_virtual_cursor(self, value: str) -> Generator[str, None, None]:
+    def _prepand_nop(self, data: Iterable[str]) -> Iterator[str | FabricException]:
         """
-        This method receives a value from user's input symbol by symbol
-            and tries to guess the next possible path(s) for this input.
+        This method simply adds a blank line to a head of the stream. If the stream is not lazy, it also converts it.
+        The blank line is then eaten by _process_fabric method or _mod_* methods. Final stream does not contain it.
+        It also casts Iterable[str] to Iterator[str | FabricException] despite there is no exceptions in the stream.
         """
-        if not value:
-            return
-        value = value.lower()
-        parts: list[str] = value.split()
-        command: str = parts[0]  # command must be top, show, or go
-        sub_command: str = ''
-        offset: int = 0
-        if command in self.keywords['top']:
-            if len(parts) < 3:
-                return
-            sub_command = parts[1]  # sub_command must be show or go
-            if sub_command in self.keywords['show'] or sub_command in self.keywords['go']:
-                self._virtual_cursor = self._tree
-                self._virtual_h_cursor = self._tree
-                offset = 2
-                command = sub_command
-            else:
-                return
-        elif command in self.keywords['up']:
-            if len(parts) < 3:
-                return
-            sub_command = parts[1]  # sub_command must be show or go
-            if sub_command in self.keywords['show'] or sub_command in self.keywords['go']:
-                temp = self._cursor
-                self.command_up(deque(), [])
-                self._virtual_cursor = self._cursor
-                self._virtual_h_cursor = self._cursor
-                self._cursor = temp
-                offset = 2
-                command = sub_command
-            else:
-                return
-        elif command in self.keywords['show'] or command in self.keywords['go']:
-            if len(parts) < 2:
-                return
-            self._virtual_cursor = self._cursor
-            self._virtual_h_cursor = self._cursor
-            offset = 1
-        else:
-            return
-        data = deque(parts[offset:])
-        if self._is_heuristics and command not in self.keywords['go']:
-            yield from chain(
-                self._update_virtual_cursor(copy(data), is_heuristics=False),
-                self._update_virtual_cursor(copy(data), is_heuristics=True),
-            )
-        else:
-            yield from self._update_virtual_cursor(data, is_heuristics=False)
-
-    def get_virtual_from(self, value: str) -> str:
-        """
-        This method receives a value from user's input after a Tab's strike and returns
-            a word that should be replaced in the input.
-        """
-        if not value:
-            return ''
-        parts: list[str] = value.split()
-        first = ''
-        command = parts[0]
-        if command in self.keywords['top'] or command in self.keywords['up']:
-            if len(parts) < 3:
-                return ''
-            first = command
-            parts = parts[2:]
-        elif command in self.keywords['show'] or command in self.keywords['go']:
-            if len(parts) < 2:
-                return ''
-            parts = parts[1:]
-        else:
-            return ''
-        input = ' '.join(parts)
-        current_path = self._cursor.path.replace(self.delimiter, ' ')
-        virtual_path = self._virtual_cursor.path.replace(self.delimiter, ' ')
-        hvirtual_path = self._virtual_h_cursor.path.replace(self.delimiter, ' ')
-        temp = self._cursor
-        if first == 'up':
-            self.command_up(deque(), [])
-            current_path = self._cursor.path.replace(self.delimiter, ' ')
-        if current_path:
-            # shorten the virtual paths
-            virtual_path = virtual_path.replace(current_path, '', 1)
-            hvirtual_path = hvirtual_path.replace(current_path, '', 1)
-        self._cursor = temp
-        virtual_path = virtual_path.strip().lower()
-        hvirtual_path = hvirtual_path.strip().lower()
-        # here we need to find out which virtual path has more in common with the input
-        first = find_common([virtual_path, input])
-        second = find_common([hvirtual_path, input])
-        if len(first) == len(second) or len(first) > len(second):
-            return input.replace(first, '', 1)
-        else:
-            return input.replace(second, '', 1)
-
-    def mod_stubs(self, jump_node: Optional[Node] = None) -> Generator[str | Exception, None, None]:
-        node = self._cursor if not jump_node else jump_node
-        if not node.stubs:
-            yield FabricException('No stubs at this level.')
-        yield '\n'  # nop
-        yield from node.stubs
-
-    def mod_sections(self, jump_node: Optional[Node] = None) -> Generator[str | Exception, None, None]:
-        node = self._cursor if not jump_node else jump_node
-        if not node.children:
-            yield FabricException('No sections at this level.')
         yield '\n'
-        yield from self._inspect_children_path(node, node.path)
-
-    def mod_wildcard(
-        self,
-        data: Iterator[str] | Generator[str | Exception, None, None],
-        args: list[str],
-        jump_node: Optional[Node] = None,
-    ) -> Generator[str | Exception, None, None]:
-        if not data or len(args) != 1:
-            yield FabricException('Incorrect arguments for "wildcard".')
-        try:
-            regexp = re.compile(args[0])
-        except re.error:
-            yield FabricException(f'Incorrect regular expression for "wildcard": {args[0]}.')
-        else:
-            try:
-                head = next(data)
-                if isinstance(head, Exception):
-                    yield head
-                else:
-                    node = jump_node if jump_node else self._cursor
-                    if not node.children:
-                        yield FabricException('No sections at this level.')
-                    yield '\n'
-                    for path, child in self._inspect_children_pair(node, node.path):
-                        self.logger.debug(f'{path} {child.name}')
-                        if re.search(regexp, path):
-                            yield from self._get_node_content(child)
-            except StopIteration:
-                yield FabricException()
-
-    def mod_diff(self, args: list[str], jump_node: Optional[Node] = None) -> Generator[str | Exception, None, None]:
-        if len(args) != 1:
-            yield FabricException('There must be one argument for "diff".')
-        if not self.name:
-            yield FabricException('Please use "set name" to name this context first.')
-        if len(self.__store) <= 1:
-            yield FabricException('No other contexts.')
-        context_name = args[0]
-        if self.name == context_name:
-            yield FabricException("You can't compare the same context.")
-        remote_context: Optional[Context] = None
-        for elem in self.__store:
-            if elem.name == context_name and type(elem) is type(self):
-                remote_context = elem
-                break
-        else:
-            yield FabricException('Remote context has not been found.')
-        assert remote_context is not None  # mypy's satisfier
-        target: Root | Node = None
-        peer: Root | Node = None
-        if jump_node:
-            target = jump_node
-            path = deque(jump_node.path.split(self.delimiter))
-            peer = search_node(path, remote_context.tree)
-        else:
-            target = self._cursor
-            if target.name != 'root':
-                path = deque(target.path.split(self.delimiter))
-                peer = search_node(path, remote_context.tree)
-            else:
-                peer = remote_context.tree
-        if not peer:
-            yield FabricException(f'Remote context lacks this path: {target.path.replace(self.delimiter, " ")}.')
-        yield '\n'
-        yield from Differ().compare(
-            list(lazy_provide_config(self.content, target, self.spaces)),
-            list(lazy_provide_config(remote_context.content, peer, remote_context.spaces)),
-        )
-
-    def mod_contains(self, args: list[str], jump_node: Optional[Node] = []) -> Generator[str | Exception, None, None]:
-        def replace_path(source: str, head: str) -> str:
-            return source.replace(head, '').replace(self.delimiter, ' ').strip()
-
-        def lookup_child(node: Node, path: str = '') -> Generator[str, None, None]:
-            for child in node.children:
-                yield from lookup_child(child, path)
-            if not node.is_accessible:
-                return
-            if re.search(args[0], node.path.replace(self.delimiter, ' ')):
-                yield replace_path(node.path, path)
-            for stub in filter(lambda x: re.search(args[0], x), node.stubs):
-                yield f'{replace_path(node.path, path)}: "{stub}"' if node.path else f'"{stub}"'
-
-        if len(args) != 1:
-            yield FabricException('There must be one argument for "contains".')
-        node = self._cursor if not jump_node else jump_node
-        if not node.children:
-            yield FabricException('No sections at this level.')
-        try:
-            re.compile(args[0])
-        except re.error:
-            yield FabricException(f'Incorrect regular expression for "contains": {args[0]}.')
-        yield '\n'
-        yield from lookup_child(node, node.path)
+        yield from data
 
     def _process_fabric(
-        self, data: Iterable[str], mods: list[list[str]], *, jump_node: Optional[Node] = None
+        self, data: Iterable[str], mods: list[list[str]], *, jump_node: Optional[ios.Node] = None
     ) -> Response:
-        def check_leading_mod(name: str, position: int, args_count: int, args_limit: int = 0) -> None:
+        def check_leading_mod(name: str, position: int, args_count: int, args_limit=0, skip=False) -> None:
             if position:
                 raise FabricException(f'Incorrect position of "{name}".')
-            if args_count != args_limit:
+
+            if args_count != args_limit and not skip:
                 raise FabricException(f'Incorrect number of arguments for "{name}". Must be {args_limit}.')
 
-        recol_data = self._prepand_nop(data)
+        modified_data = self._prepand_nop(data)
+
         try:
-            for number, elem in enumerate(mods):
-                command = elem[0]
-                if command in self.keywords['filter']:
-                    recol_data = self.mod_filter(recol_data, elem[1:])
-                elif command in self.keywords['stubs']:
-                    check_leading_mod(command, number, len(elem[1:]))
-                    recol_data = self.mod_stubs(jump_node)
-                elif command in self.keywords['sections']:
-                    check_leading_mod(command, number, len(elem[1:]))
-                    recol_data = self.mod_sections(jump_node)
-                elif command in self.keywords['save']:
-                    recol_data = self.mod_save(recol_data, elem[1:])
+            for number, element in enumerate(mods):
+                command = element[0]
+
+                # Filter
+                if command == self.alias_sub_command_filter:
+                    modified_data = self.mod_filter(modified_data, element[1:])
+                # Stubs
+                elif command == self.alias_sub_command_stubs:
+                    check_leading_mod(command, number, len(element[1:]))
+                    modified_data = self.mod_stubs(jump_node)
+                # Sections
+                elif command == self.alias_sub_command_sections:
+                    check_leading_mod(command, number, len(element[1:]))
+                    modified_data = self.mod_sections(jump_node)
+                # Save
+                elif command == self.alias_sub_command_save:
+                    modified_data = self.mod_save(modified_data, element[1:])
                     break
-                elif command in self.keywords['count']:
-                    recol_data = self.mod_count(recol_data, elem[1:])
+                # Count
+                elif command == self.alias_sub_command_count:
+                    modified_data = self.mod_count(modified_data, element[1:])
                     break
-                elif command in self.keywords['wildcard']:
-                    recol_data = self.mod_wildcard(recol_data, elem[1:], jump_node)
-                elif command in self.keywords['diff']:
-                    check_leading_mod(command, number, len(elem[1:]), 1)
-                    recol_data = self.mod_diff(elem[1:], jump_node)
-                elif command in self.keywords['contains']:
-                    check_leading_mod(command, number, len(elem[1:]), 1)
-                    recol_data = self.mod_contains(elem[1:], jump_node)
+                # Wildcard
+                elif command == self.alias_sub_command_wildcard:
+                    modified_data = self.mod_wildcard(modified_data, element[1:], jump_node)
+                # Diff
+                elif command == self.alias_sub_command_diff:
+                    check_leading_mod(command, number, len(element[1:]), skip=True)
+                    modified_data = self.mod_diff(element[1:], jump_node)
+                # Contains
+                elif command == self.alias_sub_command_contains:
+                    check_leading_mod(command, number, len(element[1:]), 1)
+                    modified_data = self.mod_contains(element[1:], jump_node)
                 else:
-                    raise FabricException(f'Unknown modificator "{command}".')
-            head = next(recol_data)
+                    raise FabricException(f'Unknown sub-command: "{command}".')
+
+            head = next(modified_data)
+
             if isinstance(head, Exception):
                 raise head
-            return ContextResponse.success(recol_data)
-        except (AttributeError, IndexError) as err:
-            return AlertResponse.error(f'Unknown error from the fabric #001: {err}')
-        except FabricException as err:
-            return AlertResponse.error(f'{err}')
+
+            return Response.success(modified_data)
+
+        except FabricException as error:
+            return Response.error(str(error))
+
+        except (AttributeError, IndexError):
+            return Response.error('Unknown error from the fabric #001')
+
         except StopIteration:
-            return AlertResponse.error('Unknown error from the fabric #002.')
-        except Exception as err:
-            self.logger.error(str(err))
-            return AlertResponse.error('Unknwown error. See the log.')
+            return Response.error('Unknown error from the fabric #002.')
+
+        except Exception:
+            return Response.error('Unknown error from the fabric #003.')
+
+    # COMMANDS
 
     def command_show(self, args: deque[str], mods: list[list[str]]) -> Response:
         if args:
-            first_arg = args[0]
-            if first_arg in self.keywords['version']:
+            if args[0] == 'version':
                 if len(args) > 1:
-                    return AlertResponse.error('Too many arguments for "version".')
+                    return Response.error(f'Too many arguments for "{self.alias_command_show} version".')
+
                 if self._tree.version:
-                    return ContextResponse.success(self._tree.version)
-                return AlertResponse.error('No version has been found.')
-            else:
-                hpath = copy(args)
-                if node := search_node(args, self._cursor):
-                    if mods:
-                        return self._process_fabric(self._get_node_content(node), mods, jump_node=node)
-                    else:
-                        return ContextResponse.success(self._get_node_content(node))
+                    return Response.success(self._tree.version)
                 else:
-                    if self._is_heuristics:
-                        if hnode := search_h_node(hpath, self._cursor):
-                            return ContextResponse.success(hnode.stubs)
-                    return AlertResponse.error('This path is not correct.')
+                    return Response.error('No version found.')
+            else:
+                copied_path = copy(args)
+
+                if node := ios.search_node(args, self._cursor):
+                    if mods:
+                        return self._process_fabric(
+                            data=ios.lazy_provide_config(self._content, node, alignment=self._spaces, is_started=True),
+                            mods=mods,
+                            jump_node=node,
+                        )
+                    else:
+                        return Response.success(
+                            ios.lazy_provide_config(self._content, node, alignment=self._spaces, is_started=True)
+                        )
+                else:
+                    if self._heuristics:
+                        if h_node := ios.search_h_node(copied_path, self._cursor):
+                            return Response.success(h_node.stubs)
+
+                    return Response.error('This path is incorrect.')
         else:
             if mods:
-                return self._process_fabric(self._get_node_content(self._cursor), mods)
+                return self._process_fabric(
+                    data=ios.lazy_provide_config(self._content, self._cursor, alignment=self._spaces, is_started=True),
+                    mods=mods,
+                )
             else:
-                return ContextResponse.success(self._get_node_content(self._cursor))
+                return Response.success(
+                    ios.lazy_provide_config(self._content, self._cursor, alignment=self._spaces, is_started=True)
+                )
 
     def command_go(self, args: deque[str]) -> Response:
         if not args:
-            return AlertResponse.error('Not enough arguments for "go".')
-        if node := search_node(args, self._cursor):
+            return Response.error(f'Not enough arguments for "{self.alias_command_go}".')
+
+        if node := ios.search_node(args, self._cursor):
             self._cursor = node
-            return AlertResponse.success()
-        return AlertResponse.error('This path is not correct.')
+        else:
+            return Response.error('This path is incorrect.')
+
+        return Response.success()
 
     def command_top(self, args: deque[str], mods: list[list[str]]) -> Response:
         if args:
             sub_command = args.popleft()
+
             temp = self._cursor
-            self._cursor = self._tree
-            if sub_command in self.keywords['show']:
+
+            if sub_command == self.alias_command_show:
                 result = self.command_show(args, mods)
                 self._cursor = temp
                 return result
-            elif sub_command in self.keywords['go']:
-                result = self.command_go(args)
-                if not result.is_ok:
+            elif sub_command == self.alias_command_go:
+                if (result := self.command_go(args)).status == 'error':
                     self._cursor = temp
-                    return AlertResponse.error(result.value)
-                return AlertResponse.success()
+                    return Response.error(result.value)
             else:
                 self._cursor = temp
-                return AlertResponse.error(f'Incorrect sub-command for "top": {sub_command}.')
+                return Response.error(f'Incorrect sub-command for "{self.alias_command_top}": {sub_command}.')
         else:
             self._cursor = self._tree
-            return AlertResponse.success()
+
+        return Response.success()
 
     def command_up(self, args: deque[str], mods: list[list[str]]) -> Response:
-        steps: int = 1
+        steps = 1
+
         if args:
             arg = args.popleft()
-            if arg in self.keywords['show']:
-                if self._cursor.name == 'root':
-                    return AlertResponse.error("You can't do a negative lookahead from the top.")
+
+            if arg == self.alias_command_show:
+                if type(self._cursor) is ios.Root:
+                    return Response.error("You can't do a negative lookahead from the top.")
+
                 temp = self._cursor
-                self.command_up(deque(), [])
+
+                assert type(self._cursor) is ios.Node
+                self._cursor = self._cursor.parent
                 result = self.command_show(args, mods)
                 self._cursor = temp
                 return result
             elif arg.isdigit():
-                if len(args) != 1:
-                    return AlertResponse.error('There must be one argument for "up".')
-                steps = min(int(arg), UP_LIMIT)
+                if len(args):
+                    return Response.error(f'There must be one argument for "{self.alias_command_up}".')
+
+                steps = min(int(arg), self._up_limit)
             else:
-                return AlertResponse.error(f'Incorrect argument for "up": {arg}.')
-        if self._cursor.name == 'root':
-            return AlertResponse.success()
+                return Response.error(f'Incorrect argument for "{self.alias_command_up}": {arg}.')
+
+        if type(self._cursor) is ios.Root:
+            return Response.success()
+
         current = self._cursor
+
         while steps:
-            if current.name == 'root':
+            if type(current) is ios.Root:
                 break
+
+            assert type(current) is ios.Node
             current = current.parent
             if current.is_accessible:
                 steps -= 1
+
         self._cursor = current
-        return AlertResponse.success()
+
+        return Response.success()
+
+    # MODS
+
+    def mod_diff(self, args: list[str], jump_node: Optional[ios.Node] = None) -> Iterator[str | FabricException]:
+        if not args:
+            yield FabricException(f'There must be at least one argument for "{self.alias_sub_command_diff}".')
+        elif len(args) > 2:
+            yield FabricException(f'Too many arguments for "{self.alias_sub_command_diff}".')
+        elif len(args) == 2:
+            # Rollback case
+            if args[0] != 'rollback':
+                yield FabricException(f'Unsupported mode for "{self.alias_sub_command_diff}": {args[0]}.')
+
+            if len(self._neighbors) < 2:
+                yield FabricException('Nothing to compare.')
+
+            context_id_str = args[1]
+            if not context_id_str.isdigit():
+                yield FabricException('Rollback ID must be a numeric value.')
+
+            context_id = int(context_id_str)
+            if context_id == self.context_id:
+                yield FabricException("You can't compare the same context.")
+            elif context_id >= len(self._neighbors):
+                yield FabricException(f'Incorrect ID for the target context: {context_id}.')
+
+            remote_context = self._neighbors[context_id]
+        else:
+            # Regular case
+            if not self.name:
+                yield FabricException('Please use "set name" to name this context first.')
+
+            if len(self.__store) <= 1:
+                yield FabricException('No other contexts.')
+
+            context_name = args[0]
+
+            if self.name == context_name:
+                yield FabricException("You can't compare the same context.")
+
+            for element in self.__store:
+                if element.name == context_name and type(element) is type(self):
+                    remote_context = element
+                    break
+            else:
+                yield FabricException('Remote context has not been found.')
+
+        target: ios.Root | ios.Node = self._cursor
+
+        if jump_node:
+            target = jump_node
+
+        if target.name == 'root':
+            peer = remote_context.tree
+        else:
+            peer = ios.search_node(deque(target.path.split(self.delimiter)), remote_context.tree)
+
+        if not peer:
+            yield FabricException(f'Remote context lacks this path: {target.path.replace(self.delimiter, " ")}.')
+
+        if compared := ios.compare_nodes(target, peer):
+            yield '\n'
+            yield from ios.lazy_provide_compare(compared, delimiter=self.delimiter, alignment=self._spaces)
+        else:
+            yield FabricException('Fail to compare the contexts. The same content?')
+
+    def mod_stubs(self, jump_node: Optional[ios.Node] = None) -> Iterator[str | FabricException]:
+        node = jump_node if jump_node else self._cursor
+
+        if not node.stubs:
+            yield FabricException('No stubs at this level.')
+
+        yield '\n'
+        yield from node.stubs
+
+    def mod_sections(self, jump_node: Optional[ios.Node] = None) -> Iterator[str | FabricException]:
+        node = jump_node if jump_node else self._cursor
+
+        if not node.children:
+            yield FabricException('No sections at this level.')
+
+        yield '\n'
+        yield from self._inspect_children_path(node, node.path)
+
+    def mod_wildcard(
+        self, data: Iterator[str | FabricException], args: list[str], jump_node: Optional[ios.Node] = None
+    ) -> Iterator[str | FabricException]:
+        if not data or len(args) != 1:
+            yield FabricException(f'Incorrect arguments for "{self.alias_sub_command_wildcard}".')
+
+        try:
+            regexp = re.compile(args[0])
+        except re.error:
+            yield FabricException(f'Incorrect regular expression for "{self.alias_sub_command_wildcard}": {args[0]}.')
+        else:
+            try:
+                head = next(data)
+
+                if isinstance(head, Exception):
+                    yield head
+                else:
+                    node = jump_node if jump_node else self._cursor
+
+                    if not node.children:
+                        yield FabricException('No sections at this level.')
+
+                    yield '\n'
+
+                    for path, child in self._inspect_children_pair(node, node.path):
+                        if re.search(regexp, path):
+                            yield from ios.lazy_provide_config(
+                                self._content, child, alignment=self._spaces, is_started=True
+                            )
+            except StopIteration:
+                yield FabricException()
+
+    def mod_contains(self, args: list[str], jump_node: Optional[ios.Node] = None) -> Iterator[str | FabricException]:
+        def replace_path(source: str, head: str) -> str:
+            return source.replace(head, '').replace(self.delimiter, ' ').strip()
+
+        def lookup_child(node: ios.Root | ios.Node, path: str = '') -> Iterator[str]:
+            for child in node.children:
+                yield from lookup_child(child, path)
+
+            if not node.is_accessible:
+                return
+
+            if re.search(args[0], node.path.replace(self.delimiter, ' ')):
+                yield replace_path(node.path, path)
+
+            for stub in filter(lambda x: re.search(args[0], x), node.stubs):
+                yield f'{replace_path(node.path, path)}: "{stub}"' if node.path else f'"{stub}"'
+
+        if len(args) != 1:
+            yield FabricException(f'There must be one argument for "{self.alias_sub_command_contains}".')
+
+        node = jump_node if jump_node else self._cursor
+
+        if not node.children:
+            yield FabricException('No sections at this level.')
+
+        try:
+            re.compile(args[0])
+        except re.error:
+            yield FabricException(f'Incorrect regular expression for "{self.alias_sub_command_contains}": {args[0]}.')
+
+        yield '\n'
+        yield from lookup_child(node, node.path)
+
+    # GETTERS
+
+    def get_rollback_config(self, virtual_path: str) -> tuple[int, int, Iterable[str]]:
+        node: Optional[ios.Root | ios.Node] = None
+
+        if virtual_path:
+            node = ios.search_node(deque(virtual_path.split(self.delimiter)), self._tree)
+
+            if not node:
+                virtual_path = virtual_path.replace(self.delimiter, ' ')
+                raise ValueError(f'Node for path "{virtual_path}" is not found.')
+        else:
+            node = self._tree
+
+        return node.begin, node.end, self._content[node.begin : node.end]
+
+    def get_possible_sections(self, value: str) -> Iterator[str]:
+        # This method receives a value from user's input symbol by symbol
+        # and tries to guess the next possible path(s) for this input.
+
+        if not value:
+            return
+
+        value = value.lower()
+        parts = value.split()
+
+        command = parts[0]
+        sub_command = ''
+        offset = 0
+
+        if command == self.alias_command_top:
+            if len(parts) < 3:
+                return
+
+            sub_command = parts[1]
+
+            if sub_command == self.alias_command_show or sub_command == self.alias_command_go:
+                self._virtual_cursor = self._tree
+                self._virtual_h_cursor = self._tree
+
+                offset = 2
+                command = sub_command
+            else:
+                return
+        elif command == self.alias_command_up:
+            if len(parts) < 3:
+                return
+
+            sub_command = parts[1]
+
+            if sub_command == self.alias_command_show or sub_command == self.alias_command_go:
+                temp = self._cursor
+
+                self.command_up(deque(), [])
+                self._virtual_cursor = self._cursor
+                self._virtual_h_cursor = self._cursor
+
+                offset = 2
+                command = sub_command
+
+                self._cursor = temp
+            else:
+                return
+        elif command == self.alias_command_show or command == self.alias_command_go:
+            if len(parts) < 2:
+                return
+
+            self._virtual_cursor = self._cursor
+            self._virtual_h_cursor = self._cursor
+
+            offset = 1
+        else:
+            yield from self.get_possible_commands(value)
+            return
+
+        data = deque(parts[offset:])
+
+        if self._heuristics and command != self.alias_command_go:
+            yield from chain(
+                self._update_virtual_cursor(copy(data)), self._update_virtual_cursor(data, heuristics=True)
+            )
+        else:
+            yield from self._update_virtual_cursor(data)
+
+    def get_virtual_from(self, value: str) -> str:
+        # This method receives a value from a user's input after a Tab's strike
+        # and returns a word that should be replaced in the input.
+
+        if not value:
+            return ''
+
+        first_command = ''
+        parts = value.split()
+
+        if len(parts) == 1:
+            return value
+
+        command = parts[0]
+
+        if command == self.alias_command_top or command == self.alias_command_up:
+            if len(parts) < 3:
+                return ''
+
+            first_command = command
+            parts = parts[2:]
+        elif command == self.alias_command_show or command == self.alias_command_go:
+            if len(parts) < 2:
+                return ''
+
+            parts = parts[1:]
+        else:
+            return ''
+
+        modified_input = ' '.join(parts)
+        current_path = self._cursor.path.replace(self.delimiter, ' ')
+        virtual_path = self._virtual_cursor.path.replace(self.delimiter, ' ')
+        virtual_h_path = self._virtual_h_cursor.path.replace(self.delimiter, ' ')
+
+        temp = self._cursor
+
+        if first_command == self.alias_command_up:
+            self.command_up(deque(), [])
+            current_path = self._cursor.path.replace(self.delimiter, ' ')
+
+        if current_path:
+            virtual_path = virtual_path.replace(current_path, '', 1)
+            virtual_h_path = virtual_h_path.replace(current_path, '', 1)
+
+        self._cursor = temp
+
+        virtual_path = virtual_path.strip().lower()
+        virtual_h_path = virtual_h_path.strip().lower()
+
+        # here we need to find out which virtual path has more in common with the input
+        f = find_common([virtual_path, modified_input])
+        s = find_common([virtual_h_path, modified_input])
+
+        if len(f) == len(s) or len(f) > len(s):
+            return modified_input.replace(f, '', 1)
+        else:
+            return modified_input.replace(s, '', 1)
+
+    # STATIC METHODS
+
+    @staticmethod
+    def validate_commit(commit_data: Iterable[str]) -> None:
+        def walk(node: ios.Root | ios.Node) -> None:
+            names = []
+            for child in node.children:
+                names.append(child.name)
+                walk(child)
+
+            if len(set(names)) != len(node.children):
+                raise Exception('Duplicate sections.')
+
+            if len(set(node.stubs)) != len(node.stubs):
+                raise Exception('Duplicate stubs.')
+
+        data = list(commit_data)
+        data.insert(0, 'version ')
+        data.append('end')
+
+        tree = ios.construct_tree(data)
+        if not tree:
+            raise ValueError('Nothing to commit, cannot generate a tree.')
+
+        try:
+            walk(tree)
+        except Exception as error:
+            raise ValueError(error)

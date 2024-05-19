@@ -1,15 +1,3 @@
-__all__ = (
-    'Response',
-    'ContextResponse',
-    'SettingsResponse',
-    'AlertResponse',
-    'RichResponse',
-)
+from thymus.responses.response import Response, SystemResponse
 
-from .responses import (
-    Response,
-    ContextResponse,
-    SettingsResponse,
-    AlertResponse,
-    RichResponse,
-)
+__all__ = ('Response', 'SystemResponse')

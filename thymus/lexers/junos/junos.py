@@ -26,9 +26,9 @@ class JunosLexer(RegexLexer):
             # STANDALONE ANNOTATION
             (r'(\s*)(/\*[^\*]+\*/)(\n)', bygroups(Whitespace, Comment, Operator.Word)),
             # DIFF/COMPARE +
-            (r'(\s*)(\+)(\s)(.+\n)', bygroups(Whitespace, Generic.Inserted, Whitespace, Generic.Inserted)),
+            (r'(\s*)(\+)(.+\n)', bygroups(Whitespace, Generic.Inserted, Generic.Inserted)),
             # DIFF/COMPARE -
-            (r'(\s*)(-)(\s)(.+\n)', bygroups(Whitespace, Generic.Deleted, Whitespace, Generic.Deleted)),
+            (r'(\s*)(-)(.+\n)', bygroups(Whitespace, Generic.Deleted, Generic.Deleted)),
             # INACTIVE
             (r'(\s*)(inactive: )(?=[^\n;\s])', bygroups(Whitespace, Name.Constant), '#push'),
             # PROTECTED

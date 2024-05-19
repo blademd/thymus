@@ -1,27 +1,21 @@
 from __future__ import annotations
 
-from logging import Logger
+from collections import deque
+from copy import copy
 
-from . import IOSContext
+from thymus.contexts import IOSContext
+from thymus.responses import Response
 
 
 class EOSContext(IOSContext):
-    @property
-    def nos_type(self) -> str:
-        return 'EOS'
+    def command_set(self, args: deque[str]) -> Response:
+        if args:
+            xargs = copy(args)
 
-    def __init__(
-        self, name: str, content: list[str], *, encoding: str, settings: dict[str, str | int], logger: Logger
-    ) -> None:
-        content.insert(0, 'version ')  # mimics to IOS-like
-        super().__init__(name, content, encoding=encoding, settings=settings, logger=logger)
-        self.content[0] = '!'
-        self.tree.stubs.remove('version')
+            command = xargs.popleft()
+            command = command.lower()
 
-    def _rebuild_tree(self) -> None:
-        if self.content and self.content[0] == '!':
-            self.content.pop(0)
-        self.content.insert(0, 'version ')
-        super()._rebuild_tree()
-        self.content[0] = '!'
-        self.tree.stubs.remove('version')
+            if command == 'promisc':
+                return Response.error('The command "set promisc" is not supported!')
+
+        return super().command_set(args)

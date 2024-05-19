@@ -10,6 +10,12 @@ dist/
 #VENV
 .venv/
 
+# VSCode
+.vscode/
+
+# Custom AST
+thymus_ast/
+
 #conf
 conf
 *.conf

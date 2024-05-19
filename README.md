@@ -1,18 +1,18 @@
 
-![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/13dbe00e-8ece-48a7-b203-83742c0f6d8a)
+![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/8c790c6a-7d11-4cd6-8283-52cf29e8472e)
 
 
 # Thymus
 
-[Thymus](https://en.wikipedia.org/wiki/Thymus_(plant)) — is a config browser. Thymus does not require a connection to any network device (but it can be used itself over SSH from a remote machine). You just need to save a configuration file, open it anytime, and navigate through it. Thymus mimics to CLI of a selected platform.
+[Thymus](https://en.wikipedia.org/wiki/Thymus_(plant)) — is a config browser and editor. Thymus understands the context of a network configuration file compared to popular text editors. It mimics the CLI of a selected platform. That allows you to navigate, display, and edit selected configuration parts based on their paths just like in your favorite network operation system. You can save edited versions many times, creating a history log. Thymus supports the diff among them and can roll back to any saved version.
+
+Thymus does not require a connection to any network device but it can fetch a configuration from a remote machine via Telnet or SSH. Also, it can be used over SSH from a remote machine.
 
 Thymus supports:
 
 * Juniper JunOS (and probably other JunOS-like systems, e.g. SR-OS **with** MD-CLI)
-* Cisco IOS/IOS-XE/NX-OS (and probably other IOS-like systems)
+* Cisco IOS/IOS-XE/NX-OS/XR-OS (and probably other IOS-like systems)
 * Arista EOS
-
-*This is the early alpha version! So some glitches can be appearing.*
 
 <details>
 	<summary>Screenshots</summary>
@@ -35,30 +35,20 @@ Thymus supports:
 
 ## Installation
 
-Use `pip` to install the project right from its sources (e.g., `pip install thymus/` or `python -m pip install thymus/`).
+Use `pip` or `pipx` to install the package (e.g., `pip install thymus` or `pipx install thymus`). Requires Python **3.9**!
 
-## Modes
+## Operations
 
-Thymus operates in two modes:
-
-- **TUI-based**. This mode draws the full-scale user interface in your console with mouse support. From the Textual documentation:
+Thymus operates in **TUI-based** mode thanks to the [Textual](https://textual.textualize.io/) library. This mode draws the full-scale user interface in your console with mouse support. From the Textual documentation:
 
 	> On modern terminal software (installed by default on most systems), Textual apps can use **16.7 million** colors with mouse support and smooth flicker-free animation. A powerful layout engine and re-usable components makes it possible to build apps that rival the desktop and web experience.
 
 	> Textual runs on Linux, macOS, Windows and probably any OS where Python also runs.
 
-- **CLI-based**. This is a hardcore mode for old men who yell at clouds. At least, it works for old terminals without mouse support.
 
-To run the TUI-mode use the command:
+To run Thymus use the command:
 ```
 python -m thymus
-```
-```
-python -m thymus tuier
-```
-The CLI-mode is invoked by:
-```
-python -m thymus clier
 ```
 
 ## Documentation
@@ -67,5 +57,4 @@ Please, refer to [Wiki](https://github.com/blademd/thymus/wiki).
 
 ## Feedback
 
-[Twitter](https://twitter.com/blademd)
 [Telegram](https://t.me/blademd)

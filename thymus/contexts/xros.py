@@ -5,9 +5,12 @@ from copy import copy
 
 from thymus.contexts import IOSContext
 from thymus.responses import Response
+from thymus.lexers import CommonLexer
 
 
-class NXOSContext(IOSContext):
+class XROSContext(IOSContext):
+    lexer = CommonLexer
+
     def command_set(self, args: deque[str]) -> Response:
         if args:
             xargs = copy(args)

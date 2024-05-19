@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class TimeoutError(Exception):
     def __init__(self, ip_address: str) -> None:
         self.ip_address = ip_address

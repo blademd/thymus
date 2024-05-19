@@ -1,13 +1,16 @@
-from .context import Context
-from .junos import JunOSContext
-from .ios import IOSContext
-from .eos import EOSContext
-from .nxos import NXOSContext
+from thymus.contexts.context import Context, FabricException
+from thymus.contexts.junos import JunosContext
+from thymus.contexts.ios import IOSContext
+from thymus.contexts.nxos import NXOSContext
+from thymus.contexts.eos import EOSContext
+from thymus.contexts.xros import XROSContext
 
 __all__ = (
     'Context',
-    'JunOSContext',
+    'FabricException',
+    'JunosContext',
     'IOSContext',
-    'EOSContext',
     'NXOSContext',
+    'EOSContext',
+    'XROSContext',
 )
