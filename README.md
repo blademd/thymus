@@ -1,6 +1,9 @@
 
 ![thymus_default_screen](https://github.com/blademd/thymus/assets/1499024/7b68e7bd-0ea1-49fc-9503-e24254d2c014)
 
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/thymus.svg)](https://img.shields.io/pypi/pyversions/thymus)
+[![PyPI](https://img.shields.io/pypi/v/thymus.svg)](https://pypi.python.org/pypi/thymus)
+
 
 # Thymus
 
