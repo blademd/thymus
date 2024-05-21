@@ -3,6 +3,8 @@
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/thymus.svg)](https://img.shields.io/pypi/pyversions/thymus)
 [![PyPI](https://img.shields.io/pypi/v/thymus.svg)](https://pypi.python.org/pypi/thymus)
+[![Downloads](https://static.pepy.tech/badge/thymus)](https://static.pepy.tech/badge/thymus)
+[![Downloads-per-month](https://img.shields.io/pypi/dm/thymus.svg)](https://img.shields.io/pypi/dm/thymus.svg)
 
 
 # Thymus
