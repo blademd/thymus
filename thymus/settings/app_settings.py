@@ -28,14 +28,13 @@ class AppSettings:
         'wrapper_folder': StrSetting('~/thymus_data', show=False, read_only=True),
         'templates_folder': StrSetting('templates', show=False, read_only=True),
         'system_encoding': StrSetting('UTF-8', encoding=True),
-        'last_opened_platform': IntSetting(2, negative=False, show=False),
+        'last_opened_platform': StrSetting('', show=False),
         'default_folder': StrSetting('~/thymus_data/saves', description='default path for the open dialog'),
         'saves_folder': StrSetting('saves'),
         'screens_folder': StrSetting('screenshots'),
         'logging_folder': StrSetting('log'),
         'logging_level': StrSetting('DEBUG', fixed_values=('CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG')),
         'logging_file': StrSetting('thymus.log'),
-        'logging_file_max_size': IntSetting(5000000, non_zero=True, negative=False, description='in bytes'),
         'logging_max_files': IntSetting(5, non_zero=True, negative=False),
         'logging_buffer_capacity': IntSetting(
             65535,
@@ -291,8 +290,7 @@ class AppSettings:
             return
 
         try:
-            keys = list(self.platforms.keys())
-            self.settings['last_opened_platform'].value = keys.index(k)
+            self.settings['last_opened_platform'].value = k
             self.dump()
         except (KeyError, ValueError):
             return

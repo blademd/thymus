@@ -1,14 +1,14 @@
 [tool.poetry]
 name = "thymus"
-version = "0.1.8"
+version = "0.1.8.1"
 description = "Editor & browser for network configuration files"
 authors = ["Igor Malyushkin <gmalyushkin@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-textual = "0.61.0"
-thymus-ast = "^0.1.8"
+textual = "0.64.0"
+thymus-ast = "^0.1.8.2"
 asyncssh = "^2.14.1"
 telnetlib3 = "^2.0.4"
 bcrypt = "^4.1.1"

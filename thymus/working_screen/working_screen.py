@@ -131,6 +131,12 @@ class WorkingScreen(Screen):
         self.query_one(CommandLine).focus()
 
     def on_release(self) -> None:
+        if self.drawing_thread:
+            self.drawing_thread.cancel()
+
+        if (editor := self.query_one(Editor)).drawing_thread:
+            editor.drawing_thread.cancel()
+
         for context in self.contexts:
             context.release()
 
@@ -260,7 +266,7 @@ class WorkingScreen(Screen):
     def action_request_quit(self) -> None:
         from thymus.modals import QuitScreen
 
-        self.app.push_screen(QuitScreen(), self.on_quit_cb)
+        self.app.push_screen(QuitScreen('Do you really want to close this context?'), self.on_quit_cb)
 
     def action_toggle_sidebar(self) -> None:
         sidebar = self.query_one('#working-screen-left-siderbar')

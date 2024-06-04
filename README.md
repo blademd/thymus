@@ -40,7 +40,9 @@ Thymus supports:
 
 ## Installation
 
-Use `pip` or `pipx` to install the package (e.g., `pip install thymus` or `pipx install thymus`). Requires Python **3.9**!
+Use `pip` or `pipx` to install the package (e.g., `pip install thymus` or `pipx install thymus`).
+
+Requires Python **3.9**!
 
 ## Operations
 

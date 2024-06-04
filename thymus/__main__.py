@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from textual import on
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.widgets import Footer, Label
 from textual.containers import Vertical
 from textual.events import Resize
@@ -19,9 +20,11 @@ from thymus.working_screen import WorkingScreen
 class Thymus(App):
     CSS_PATH = 'styles/main.css'
     BINDINGS = [
-        ('ctrl+o', 'request_open', 'Open'),
-        ('ctrl+l', 'request_switch', 'List screens'),
-        ('ctrl+s', 'request_settings', 'Settings'),
+        Binding('ctrl+o', 'request_open', 'Open'),
+        Binding('ctrl+l', 'request_switch', 'List screens'),
+        Binding('ctrl+s', 'request_settings', 'Settings'),
+        Binding('ctrl+c', 'request_quit', 'Quit'),
+        Binding('ctrl+p', 'request_screenshot', 'Screenshot', show=False),
     ]
 
     def __init__(self) -> None:
@@ -56,19 +59,38 @@ class Thymus(App):
 
         self.push_screen('settings_screen')
 
+    def action_request_quit(self) -> None:
+        from thymus.modals import QuitScreen
+
+        self.app.push_screen(QuitScreen('Do you really want to close Thymus?'), self.on_quit_cb)
+
+    def action_request_screenshot(self) -> None:
+        from pathlib import Path
+
+        try:
+            path = Path(self.app_settings['wrapper_folder'].value).expanduser()
+            path = path / Path(Path(self.app_settings['screens_folder'].value))
+
+            self.save_screenshot(path=str(path))
+        except Exception as error:
+            self.app_settings.logger.error(f'Screenshot saving error.\n{error}')
+
     # EVENTS
 
     def on_ready(self) -> None:
         self.dark = self.app_settings['night_mode'].value
 
-    def on_resize(self, event: Resize) -> None:
-        # TODO: account for the left panel presence
-        # TODO: change with a simple text
+    def on_quit_cb(self, result: bool) -> None:
+        if result:
+            self.app.exit()
 
+    def on_resize(self, event: Resize) -> None:
         try:
             for control in self.query(Vertical):
                 if 'logo' in control.classes:
-                    if event.virtual_size.width <= 120:
+                    width = 55 if len(self.screen_stack) == 1 else 120
+
+                    if event.virtual_size.width <= width:
                         if control.styles.display != 'none':
                             control.styles.display = 'none'
                     else:

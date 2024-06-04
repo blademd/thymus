@@ -83,19 +83,30 @@ class OpenScreen(ModalScreen[OpenScreenResult]):
                 self.path = path
 
         self.platforms = settings.platforms
-        self.last_platform: int = settings['last_opened_platform'].value
+        self.last_platform: str = settings['last_opened_platform'].value
 
     # COMPOSE
 
     def compose_platforms(self) -> ComposeResult:
-        if len(self.platforms) < self.last_platform:
-            self.last_platform = 0
-
         yield Static('Select platform:')
 
-        with ExtendedListView(initial_index=self.last_platform + 1, id='open-screen-switches-platform'):
-            for name, platform in self.platforms.items():
-                yield ListItem(Label(platform['short_name'].value, name=name))
+        with ExtendedListView(id='open-screen-switches-platform'):
+            if self.last_platform:
+                if self.last_platform in self.platforms:
+                    platform = self.platforms[self.last_platform]
+                    yield ListItem(Label(platform['short_name'].value, name=self.last_platform))
+
+                    for name, platform in self.platforms.items():
+                        if name == self.last_platform:
+                            continue
+
+                        yield ListItem(Label(platform['short_name'].value, name=name))
+                else:
+                    for name, platform in self.platforms.items():
+                        yield ListItem(Label(platform['short_name'].value, name=name))
+            else:
+                for name, platform in self.platforms.items():
+                    yield ListItem(Label(platform['short_name'].value, name=name))
 
     def compose(self) -> ComposeResult:
         with Horizontal(id='open-screen-main-block'):

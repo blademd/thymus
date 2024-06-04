@@ -9,9 +9,13 @@ from textual.containers import Grid
 
 
 class QuitScreen(ModalScreen[bool]):
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self.message = message
+
     def compose(self) -> ComposeResult:
         with Grid(id='quit-screen-dialog'):
-            yield Label('Do you really want to close this context?', id='quit-screen-question')
+            yield Label(self.message, id='quit-screen-question')
             yield Button('Cancel', variant='primary', id='quit-screen-cancel-button')
             yield Button('Close', variant='error', id='quit-screen-close-button')
 

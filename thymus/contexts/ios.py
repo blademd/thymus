@@ -61,9 +61,9 @@ class IOSContext(Context):
     def heuristics(self, value: bool | str) -> None:
         if type(value) is not bool:
             if type(value) is str:
-                if value in ('0', 'off'):
+                if value.lower() in ('0', 'off', 'false'):
                     value = False
-                elif value in ('1', 'on'):
+                elif value.lower() in ('1', 'on', 'true'):
                     value = True
                 else:
                     raise ValueError(f'Incorrect value for "heuristics": {value}.')
@@ -85,9 +85,9 @@ class IOSContext(Context):
     def base_heuristics(self, value: bool | str) -> None:
         if type(value) is not bool:
             if type(value) is str:
-                if value in ('0', 'off'):
+                if value.lower() in ('0', 'off', 'false'):
                     value = False
-                elif value in ('1', 'on'):
+                elif value.lower() in ('1', 'on', 'true'):
                     value = True
                 else:
                     raise ValueError(f'Incorrect value for "base_heuristics": {value}.')
@@ -109,9 +109,9 @@ class IOSContext(Context):
     def crop(self, value: bool | str) -> None:
         if type(value) is not bool:
             if type(value) is str:
-                if value in ('0', 'off'):
+                if value.lower() in ('0', 'off', 'false'):
                     value = False
-                elif value in ('1', 'on'):
+                elif value.lower() in ('1', 'on', 'true'):
                     value = True
                 else:
                     raise ValueError(f'Incorrect value for "crop": {value}.')
@@ -136,9 +136,9 @@ class IOSContext(Context):
     def promisc(self, value: bool | str) -> None:
         if type(value) is not bool:
             if type(value) is str:
-                if value in ('0', 'off'):
+                if value.lower() in ('0', 'off', 'false'):
                     value = False
-                elif value in ('1', 'on'):
+                elif value.lower() in ('1', 'on', 'true'):
                     value = True
                 else:
                     raise ValueError(f'Incorrect value for "promisc": {value}.')
@@ -160,9 +160,9 @@ class IOSContext(Context):
     def find_head(self, value: bool | str) -> None:
         if type(value) is not bool:
             if type(value) is str:
-                if value in ('0', 'off'):
+                if value.lower() in ('0', 'off', 'false'):
                     value = False
-                elif value in ('1', 'on'):
+                elif value.lower() in ('1', 'on', 'true'):
                     value = True
                 else:
                     raise ValueError(f'Incorrect value for "find_head": {value}.')

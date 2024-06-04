@@ -392,14 +392,14 @@ files = [
 
 [[package]]
 name = "textual"
-version = "0.61.0"
+version = "0.64.0"
 description = "Modern Text User Interface framework"
 category = "main"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "textual-0.61.0-py3-none-any.whl", hash = "sha256:176ac3aa5427fc076492d16afd20ea5c508605c2826cd176c8f5ac2589a1ee46"},
-    {file = "textual-0.61.0.tar.gz", hash = "sha256:91c83a659da40b227eced4fa749026a236b493cc5911a9bedd990ad5f0786be2"},
+    {file = "textual-0.64.0-py3-none-any.whl", hash = "sha256:36274bc3e88fa12d99d07c80b35feb3c18b971c66de71900001571e9cf13a140"},
+    {file = "textual-0.64.0.tar.gz", hash = "sha256:fee0edd38cdd9a30c7558e9b39b01e82185f8b5218a2456f4f6c0450cb118cba"},
 ]
 
 [package.dependencies]
@@ -412,26 +412,26 @@ syntax = ["tree-sitter (>=0.20.1,<0.21.0)", "tree-sitter-languages (==1.10.2)"]
 
 [[package]]
 name = "thymus-ast"
-version = "0.1.8.1"
+version = "0.1.8.2"
 description = "A set of tools to build ASTs for different NOS"
 category = "main"
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "thymus_ast-0.1.8.1-py3-none-any.whl", hash = "sha256:4cf690b9a656281d86e291d69ed266de2e739050429346126617597f8ef67d6f"},
-    {file = "thymus_ast-0.1.8.1.tar.gz", hash = "sha256:d79fb1a949c2bd008f9d53e9a3f4f026c9cfb8de4f449b37203dd87cffaee06f"},
+    {file = "thymus_ast-0.1.8.2-py3-none-any.whl", hash = "sha256:318176ca849e1f7bc29802dec54965c9fed9920fdfa05be0cd2bac81643e70d5"},
+    {file = "thymus_ast-0.1.8.2.tar.gz", hash = "sha256:3152ffd1464dda4538b7fdf7c35e5bfd878d3f0377775b51ce983b4ac631fb9e"},
 ]
 
 [[package]]
 name = "typing-extensions"
-version = "4.11.0"
+version = "4.12.1"
 description = "Backported and Experimental Type Hints for Python 3.8+"
 category = "main"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "typing_extensions-4.11.0-py3-none-any.whl", hash = "sha256:c1f94d72897edaf4ce775bb7558d5b79d8126906a14ea5ed1635921406c0387a"},
-    {file = "typing_extensions-4.11.0.tar.gz", hash = "sha256:83f085bd5ca59c80295fc2a82ab5dac679cbe02b9f33f7d83af68e241bea51b0"},
+    {file = "typing_extensions-4.12.1-py3-none-any.whl", hash = "sha256:6024b58b69089e5a89c347397254e35f1bf02a907728ec7fee9bf0fe837d203a"},
+    {file = "typing_extensions-4.12.1.tar.gz", hash = "sha256:915f5e35ff76f56588223f15fdd5938f9a1cf9195c0de25130c627e4d597f6d1"},
 ]
 
 [[package]]
@@ -452,4 +452,4 @@ test = ["coverage", "pytest", "pytest-cov"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "e43381c5abafe828b8fdef9ec55a08f571a28c925c6b5f036db14c89c673bf7f"
+content-hash = "c3c472367e7e7877864e6f295e971b4c7c797d7af672ea41338d6848f18e9503"
